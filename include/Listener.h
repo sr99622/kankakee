@@ -114,7 +114,7 @@ public:
 		}
 
 		sock = -1;
-	}WinClient
+	}
 
 	void listen() {
 		while (running) {
