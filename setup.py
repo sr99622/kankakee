@@ -28,7 +28,7 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 PKG_NAME = "kankakee"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=""):

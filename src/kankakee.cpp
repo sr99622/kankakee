@@ -72,7 +72,7 @@ PYBIND11_MODULE(kankakee, m)
         .def_readwrite("errorCallback", &Listener::errorCallback)
         .def_readwrite("listenCallback", &Listener::listenCallback);
 
-    m.attr("__version__") = "1.0.0";
+    m.attr("__version__") = "1.0.1";
 }
 
 }
