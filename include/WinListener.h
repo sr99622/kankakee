@@ -64,6 +64,10 @@ public:
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) < 0)
 			error("reuse error", WSAGetLastError());
 
+        u_long flags = 1;
+        if (ioctlsocket(sock, FIONBIO, &flags) == SOCKET_ERROR) 
+            error("server ioctl exception", WSAGetLastError());
+
 		memset(&servaddr, 0, sizeof(servaddr));
 		servaddr.sin_family = AF_INET;
 		servaddr.sin_addr.s_addr = INADDR_ANY; 
@@ -117,17 +121,27 @@ public:
 
 	void stop() {
 		running = false;
-		try {
-			if (sock > 0) {
-				if (closesocket(sock) < 0)
-					error("close error", WSAGetLastError());
+
+		auto start = std::chrono::high_resolution_clock::now();
+		bool success = false;
+
+		while (true) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			auto end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> elapsed_seconds = end - start;
+
+			if (sock < 0) {
+				success = true;
+				break;
+			}
+			if (elapsed_seconds.count() > 5) {
+				success = false;
+				break;
 			}
 		}
-		catch (const std::exception& ex) {
-			alert(ex);
-		}
 
-		sock = -1;
+		if (!success)
+			error("listener socket close time out error", ETIMEDOUT);
 	}
 
 	void listen() {
@@ -137,8 +151,15 @@ public:
 				socklen_t len = sizeof(addr);
 				memset(&addr, 0, sizeof(addr));
 				char buffer[BUF_SIZE] = { 0 };
-				if (recvfrom(sock, buffer, 1024, 0, (struct sockaddr *) &addr, &len) < 0)
-					error("recvfrom error", WSAGetLastError());
+				if (recvfrom(sock, buffer, 1024, 0, (struct sockaddr *) &addr, &len) < 0) {
+					if (WSAGetLastError() == WSAEWOULDBLOCK) {
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						continue;
+					}
+					else {
+						error("recvfrom error", WSAGetLastError());
+					}
+				}
 
 				if (listenCallback) listenCallback(buffer);
 			}
@@ -151,14 +172,12 @@ public:
 			if (sock > 0) {
 				if (closesocket(sock) < 0)
 					error("close error", WSAGetLastError());
+				sock = -1;
 			}
 		}
 		catch (const std::exception& ex) {
 			alert(ex);
 		}
-
-		sock = -1;
-		running = false;
 	}
 };
 

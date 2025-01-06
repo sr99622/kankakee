@@ -56,12 +56,21 @@ public:
 	Listener(const std::vector<std::string>& ip_addrs) : ip_addrs(ip_addrs) { }
 
 	void initialize() {
+		// initialize errors are intended to bubble up to python
 		if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-			error("listen socket creation error", errno);
+			error("listener socket creation error", errno);
 
 		int reuse = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) < 0)
-			error("re use error", errno);
+			error("listener socket reuse error", errno);
+
+		int flags = fcntl(sock, F_GETFL, 0);
+		if (flags < 0)
+			error("listener error getting socket flags", errno);
+
+		flags |= O_NONBLOCK;
+		if (fcntl(sock, F_SETFL, flags) < 0)
+			error("listener error setting socket to non-blocking", errno);
 
 		memset(&servaddr, 0, sizeof(servaddr));
 		servaddr.sin_family = AF_INET;
@@ -69,7 +78,7 @@ public:
 		servaddr.sin_port = htons(PORT); 
 		
 		if (bind(sock, (const struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-			error("listen socket bind error", errno); 
+			error("listener socket bind error", errno); 
 
 		for (int i = 0; i < ip_addrs.size(); i++) {
 			struct ip_mreq group;
@@ -77,7 +86,7 @@ public:
 			group.imr_multiaddr.s_addr = inet_addr(MULTICAST_ADDR);
 			group.imr_interface.s_addr = inet_addr(ip_addrs[i].c_str());
 			if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0)
-				error("add multicast membership error", errno);
+				error("listener add multicast membership error", errno);
 		}
 	}
 
@@ -103,17 +112,27 @@ public:
 
 	void stop() {
 		running = false;
-		try {
-			if (sock > 0) {
-				if (close(sock) < 0)
-					error("socket close exception", errno);
+
+		auto start = std::chrono::high_resolution_clock::now();
+		bool success = false;
+
+		while (true) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			auto end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> elapsed_seconds = end - start;
+
+			if (sock < 0) {
+				success = true;
+				break;
+			}
+			if (elapsed_seconds.count() > 5) {
+				success = false;
+				break;
 			}
 		}
-		catch (const std::exception& ex) {
-			alert(ex);
-		}
 
-		sock = -1;
+		if (!success)
+			error("listener socket close time out error", ETIMEDOUT);
 	}
 
 	void listen() {
@@ -123,9 +142,14 @@ public:
 				socklen_t len = sizeof(addr);
 				memset(&addr, 0, sizeof(addr));
 				char buffer[BUF_SIZE] = { 0 };
-				if (recvfrom(sock, buffer, 1024, 0, (struct sockaddr *) &addr, &len) < 0)
-					error("recvfrom error", errno);
-
+				if (recvfrom(sock, buffer, 1024, 0, (struct sockaddr *) &addr, &len) < 0) {
+					if (errno == EWOULDBLOCK || errno == EAGAIN) {
+						std::this_thread::sleep_for(std::chrono::milliseconds(100));
+						continue;
+					} else {
+						error("socket recvfrom error", errno);
+					}
+				}
 				if (listenCallback) listenCallback(buffer);
 			}
 			catch (const std::exception& ex) {
@@ -137,14 +161,12 @@ public:
 			if (sock > 0) {
 				if (close(sock) < 0)
 					error("socket close exception", errno);
+				sock = -1;
 			}
 		}
 		catch (const std::exception& ex) {
 			alert(ex);
 		}
-
-		sock = -1;
-		running = false;
 	}
 };
 

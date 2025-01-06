@@ -50,7 +50,7 @@ public:
     std::string ip;
     int port;
 
-    bool enabled = true;
+    //bool enabled = true;
     bool running = false;
 
     std::function<const std::string(const std::string&)> serverCallback = nullptr;
@@ -60,6 +60,7 @@ public:
     Server(const std::string& ip, int port) : ip(ip), port(port) { }
 
     void initialize() {
+        // initialize errors are intended to bubble up to python
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
             error("server socket create exception", errno);
 
@@ -90,16 +91,40 @@ public:
     {
         initialize();
         running = true;
-        enabled = true;
+        //enabled = true;
         std::thread thread([&]() { receive(); });
         thread.detach();
     }
 
     void stop()
     {
-        enabled = false;
-        while (running)
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        //enabled = false;
+        //while (running)
+        //    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    	
+        running = false;
+
+		auto start = std::chrono::high_resolution_clock::now();
+		bool success = false;
+
+		while (true) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			auto end = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> elapsed_seconds = end - start;
+
+			if (sock < 0) {
+				success = true;
+				break;
+			}
+			if (elapsed_seconds.count() > 5) {
+				success = false;
+				break;
+			}
+		}
+
+		if (!success)
+			error("server socket close time out error", ETIMEDOUT);
+    
     }
 
     void error(const std::string& msg, int err) {
@@ -125,7 +150,7 @@ public:
     }
 
     void receive() {
-        while (enabled) {
+        while (running) {
             int client = -1;
             try {
                 struct sockaddr addr;
@@ -215,14 +240,14 @@ public:
             if (sock > 0) {
                 if (close(sock) < 0)
                     error("socket close exception", errno);
+                sock = -1;
             }
         }
         catch (const std::exception& ex) {
             alert(ex);
         }
 
-        sock = -1;
-        running = false;
+        //running = false;
     }
 
 };

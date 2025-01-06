@@ -78,7 +78,7 @@ public:
                 }
                 catch (const std::exception& ex) {
                     std::stringstream str;
-                    str << "client create invalid port : " << ex.what();
+                    str << "client set endpoint create invalid port : " << ex.what();
                     error(str.str(), 22);
                 }
             }
@@ -87,7 +87,7 @@ public:
 
         struct in_addr tmp;
         if (!inet_pton(AF_INET, ip.c_str(), &tmp))
-            error("client create invalid ip address",  6);
+            error("client set endpoint create invalid ip address",  6);
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
