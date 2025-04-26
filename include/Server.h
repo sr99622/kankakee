@@ -49,8 +49,6 @@ public:
     int sock = -1;
     std::string ip;
     int port;
-
-    //bool enabled = true;
     bool running = false;
 
     std::function<const std::string(const std::string&)> serverCallback = nullptr;
@@ -91,25 +89,20 @@ public:
     {
         initialize();
         running = true;
-        //enabled = true;
         std::thread thread([&]() { receive(); });
         thread.detach();
     }
 
     void stop()
     {
-        //enabled = false;
-        //while (running)
-        //    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    	
         running = false;
 
-		auto start = std::chrono::high_resolution_clock::now();
+		auto start = std::chrono::steady_clock::now();
 		bool success = false;
 
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
-			auto end = std::chrono::high_resolution_clock::now();
+			auto end = std::chrono::steady_clock::now();
 			std::chrono::duration<double> elapsed_seconds = end - start;
 
 			if (sock < 0) {
@@ -149,6 +142,44 @@ public:
         return result;
     }
 
+    const std::string getClientRequest(int client)
+    {
+        char buffer[1024] = { 0 };
+        int result = 0;
+        std::stringstream input;
+
+        do {
+            memset(buffer, 0, sizeof(buffer));
+            result = recv(client, buffer, sizeof(buffer), 0);
+
+            if (result > 0) {
+                input << std::string(buffer).substr(0, 1024);
+                if (endsWith(input.str(), "\r\n"))
+                    break;
+            }
+            else if (result < 0) {
+                if (errno == EWOULDBLOCK) {
+                    fd_set fds;
+                    FD_ZERO(&fds);
+                    FD_SET(client, &fds);
+                    struct timeval timeout = {3, 0};
+                    result = select(client+1, &fds, nullptr, nullptr, &timeout);
+                    if (result <= 0)  {
+                        if (result == 0)
+                            throw std::runtime_error("recv timeout occurred");
+                        else
+                            error("client recv select exception", errno);
+                    }
+                }
+                else {
+                    error("client recv exception", errno);
+                }
+            }
+        } while (result > 0);
+
+        return input.str();
+    }
+
     void receive() {
         while (running) {
             int client = -1;
@@ -176,40 +207,7 @@ public:
                 if (!inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN))
                     error("inet_ntop exception", errno);
 
-                char buffer[1024] = { 0 };
-                int result = 0;
-                std::stringstream input;
-
-                do {
-                    memset(buffer, 0, sizeof(buffer));
-                    result = recv(client, buffer, sizeof(buffer), 0);
-
-                    if (result > 0) {
-                        input << std::string(buffer).substr(0, 1024);
-                        if (endsWith(input.str(), "\r\n"))
-                            break;
-                    }
-                    else if (result < 0) {
-                        if (errno == EWOULDBLOCK) {
-                            fd_set fds;
-                            FD_ZERO(&fds);
-                            FD_SET(client, &fds);
-                            struct timeval timeout = {3, 0};
-                            result = select(0, &fds, nullptr, nullptr, &timeout);
-                            if (result <= 0)  {
-                                if (result == 0)
-                                    throw std::runtime_error("recv timeout occurred");
-                                else
-                                    error("client recv select exception", errno);
-                            }
-                        }
-                        else {
-                            error("client recv exception", errno);
-                        }
-                    }
-                } while (result > 0);
-
-                std::string client_request = input.str();
+                std::string client_request = getClientRequest(client);
                 client_request = client_request.substr(0, client_request.length()-2);
 
                 std::string response = serverCallback(client_request.c_str());
@@ -246,10 +244,7 @@ public:
         catch (const std::exception& ex) {
             alert(ex);
         }
-
-        //running = false;
     }
-
 };
 
 }

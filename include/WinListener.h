@@ -122,12 +122,12 @@ public:
 	void stop() {
 		running = false;
 
-		auto start = std::chrono::high_resolution_clock::now();
+		auto start = std::chrono::steady_clock::now();
 		bool success = false;
 
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(500));
-			auto end = std::chrono::high_resolution_clock::now();
+			auto end = std::chrono::steady_clock::now();
 			std::chrono::duration<double> elapsed_seconds = end - start;
 
 			if (sock < 0) {

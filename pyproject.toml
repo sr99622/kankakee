@@ -25,16 +25,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kankakee"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
     { name="Stephen Rhodes", email="sr99622@gmail.com" },
 ]
 description = "A python client/server module for onvif-gui"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)",
     "Operating System :: OS Independent",
 ]
 

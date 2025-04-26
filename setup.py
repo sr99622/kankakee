@@ -28,7 +28,7 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 PKG_NAME = "kankakee"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=""):
@@ -42,6 +42,7 @@ class CMakeBuild(build_ext):
 
         cmake_args = [
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}",
+            f"-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
             f"-Wno-dev",]
         
         if sys.platform == "win32":
