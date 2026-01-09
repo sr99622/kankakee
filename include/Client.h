@@ -49,17 +49,19 @@ class Client
 public:
     int sock = -1;
     sockaddr_in addr;
-    std::string msg;
+    int timeout = 5;
+    std::vector<uint8_t> request;
 
     std::function<void(const std::string&)> errorCallback = nullptr;
-    std::function<void(const std::string&)> clientCallback = nullptr;
+    std::function<void(const std::vector<uint8_t>&)> clientCallback = nullptr;
 
     ~Client() {}
-    Client(const std::string& ip_addr) {
-        setEndpoint(ip_addr);
+    Client(const std::string& ip, int port) {
+        setEndpoint(ip, port);
     }
 
-    void setEndpoint(const std::string& ip_addr) {
+    void setEndpoint(const std::string& ip, int port) {
+        /*
         std::string arg = ip_addr;
         std::replace( arg.begin(), arg.end(), ':', ' ');
         auto iss = std::istringstream{arg};
@@ -84,6 +86,7 @@ public:
             }
             count++;
         }   
+        */
 
         struct in_addr tmp;
         if (!inet_pton(AF_INET, ip.c_str(), &tmp))
@@ -100,9 +103,11 @@ public:
         throw std::runtime_error(str.str());
     }
 
-    void transmit(const std::string& msg) {
+    void transmit(const std::vector<uint8_t>& request) {
         Client client = *this;
-        client.msg = msg;
+        //client.msg = msg;
+        //client.request = std::vector<uint8_t>(msg.begin(), msg.end());
+        client.request = request;
         std::thread thread([](Client c) { c.run(); }, client);
         thread.detach();
     }
@@ -112,7 +117,7 @@ public:
         pfd.fd = fd;
         pfd.events = events;
 
-        int poll_result = poll(&pfd, 1, 5000);
+        int poll_result = poll(&pfd, 1, timeout * 1000);
         if (poll_result > 0) {
             if (pfd.revents & events) {
                 int so_error;
@@ -132,7 +137,8 @@ public:
     }
 
     void run() {
-        std::stringstream output;
+        //std::stringstream output;
+        std::vector<uint8_t> received;
 
         try {
             sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -150,17 +156,31 @@ public:
                 }
             }
 
-            if (send(sock, msg.c_str(), msg.length(), 0) < 0)
-                error("client send exception", errno);
+            int accum = 0;
+            do {
+                result = send(sock, request.data() + accum, request.size() - accum, 0);
+                if (result > 0) {
+                    accum += result;
+                }
+                else if (result < 0) {
+                    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                        result = pollWait(sock, POLLOUT);
+                        continue;
+                    }
+                    else {
+                        error("client sent exception", errno);
+                    }
+                }
+            } while (result > 0);
 
-            char buffer[1024] = { 0 };
+            int BUFFER_SIZE = 1024 * 1024;
+            std::vector<uint8_t> buffer(BUFFER_SIZE);
             result = 0;
             do {
-                memset(buffer, 0, sizeof(buffer));
-                result = recv(sock, buffer, sizeof(buffer), 0);
+                result = recv(sock, buffer.data(), buffer.size(), 0);
 
                 if (result > 0) {
-                    output << std::string(buffer).substr(0, 1024);
+                    received.insert(received.end(), buffer.data(), buffer.data() + result);
                 }
                 else if (result < 0) {
                     if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -179,9 +199,11 @@ public:
             else std::cout << str.str() << std::endl;
             return;
         }
+
+        //std::cout << "CLIENT RECEIVED LENGTH: " << received.size() << std::endl;
         
         if (sock > -1) close(sock);
-        if (clientCallback) clientCallback(output.str());
+        if (clientCallback) clientCallback(received);
     }
 };
 

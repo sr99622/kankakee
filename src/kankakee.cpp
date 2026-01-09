@@ -30,8 +30,15 @@
     #include "WinListener.h"
 #else
     #include "Client.h"
-    #include "Server.h"
     #include "Listener.h"
+#endif
+
+#ifdef __linux__
+    #include "Server.h"
+#endif
+
+#ifdef __APPLE__
+    #include "MacServer.h"
 #endif
 
 
@@ -52,9 +59,10 @@ PYBIND11_MODULE(kankakee, m)
         .def_readwrite("running", &Server::running);
 
     py::class_<Client>(m, "Client")
-        .def(py::init<const std::string&>())
+        .def(py::init<const std::string&, int>())
         .def("transmit", &Client::transmit)
         .def("setEndpoint", &Client::setEndpoint)
+        .def_readwrite("timeout", &Client::timeout)
         .def_readwrite("errorCallback", &Client::errorCallback)
         .def_readwrite("clientCallback", &Client::clientCallback);
 
@@ -72,7 +80,7 @@ PYBIND11_MODULE(kankakee, m)
         .def_readwrite("errorCallback", &Listener::errorCallback)
         .def_readwrite("listenCallback", &Listener::listenCallback);
 
-    m.attr("__version__") = "1.0.3";
+    m.attr("__version__") = "1.0.4";
 }
 
 }

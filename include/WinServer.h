@@ -52,8 +52,10 @@ public:
 
     bool enabled = true;
     bool running = false;
-    
-    std::function<const std::string(const std::string&)> serverCallback = nullptr;
+    HANDLE shutdownEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    WSAEVENT sockEvent = WSACreateEvent();
+
+    std::function<const std::vector<uint8_t>(const std::string&)> serverCallback = nullptr;
     std::function<void(const std::string&)> errorCallback = nullptr;
 
     ~Server() {
@@ -65,6 +67,7 @@ public:
                 else std::cout << str.str() << std::endl;
             }
         } 
+        WSACloseEvent(sockEvent);
         if (wsaData.wVersion) WSACleanup();
     }
 
@@ -101,6 +104,7 @@ public:
         
         if (listen(sock, 5) == SOCKET_ERROR)
             error("server listen exception", WSAGetLastError());
+        WSAEventSelect(sock, sockEvent, FD_ACCEPT);
     }
 
     void start() {
@@ -113,6 +117,7 @@ public:
 
     void stop() {
         enabled = false;
+        SetEvent(shutdownEvent);
         while (running)
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
@@ -151,18 +156,108 @@ public:
         return result;
     }
 
+    const std::string getClientRequest(int client) {
+        char buffer[1024] = { 0 };
+        int result = 0;
+        std::stringstream input;
+
+        do {
+            memset(buffer, 0, sizeof(buffer));
+            result = recv(client, buffer, sizeof(buffer), 0);
+
+            if (result > 0)  {
+                input << std::string(buffer).substr(0, 1024);  
+                if (endsWith(input.str(), "\r\n"))
+                    break;
+            }
+            else if (result < 0) {
+                int last_error = WSAGetLastError();
+                if (last_error == WSAEWOULDBLOCK) {
+                    fd_set fds;
+                    FD_ZERO(&fds);
+                    FD_SET(client, &fds);
+                    TIMEVAL timeout = {3, 0};
+                    result = select(0, &fds, nullptr, nullptr, &timeout);
+                    if (result <= 0)  {
+                        if (result == 0)
+                            throw std::runtime_error("recv timeout occurred");
+                        else
+                            error("client recv select exception", WSAGetLastError());
+                    }
+                }
+                else {
+                    error("client recv exception", last_error);
+                }
+            }
+
+        } while (result > 0);            
+
+        return input.str();
+    }
+
+    void sendServerResponse(int client, const std::vector<uint8_t>& response) {
+        int result = 0;
+        int accum = 0;
+        do {
+            result = send(client, reinterpret_cast<const char*>(response.data()) + accum, response.size() - accum, 0);
+            if (result > 0) {
+                accum += result;
+                continue;
+            }
+            if (result < 0) {
+                int err = WSAGetLastError();
+                if (err == WSAEWOULDBLOCK) {
+                    // Windows seems to buffer internally, so I haven't ever seen this condition
+                    HANDLE handles[] = { shutdownEvent, sockEvent };
+
+                    DWORD ret = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+                    if (ret == WAIT_OBJECT_0) {
+                        std::cout << "received shutdown event" << std::endl;
+                        break;
+                    }
+
+                    else if (ret == WAIT_OBJECT_0 + 1) {
+                        WSANETWORKEVENTS ne;
+                        WSAEnumNetworkEvents(sock, sockEvent, &ne);
+                        // this wouldn't work anyway, need to declare write event
+                        if (ne.lNetworkEvents & FD_WRITE) {
+                            continue;
+                        }
+                    }
+                }
+                else {
+                    error("server send response exception", WSAGetLastError());
+                }
+            }
+        } while (result > 0);
+    }
+
     void receive() {
         while (enabled) {
             SOCKET client = INVALID_SOCKET;
             try {
+
                 struct sockaddr addr;
                 int len = sizeof(addr);
-                client = accept(sock, &addr, &len);
+                HANDLE handles[] = { shutdownEvent, sockEvent };
+
+                DWORD ret = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+                if (ret == WAIT_OBJECT_0) {
+                    std::cout << "received shutdown event" << std::endl;
+                    break;
+                }
+
+                else if (ret == WAIT_OBJECT_0 + 1) {
+                    WSANETWORKEVENTS ne;
+                    WSAEnumNetworkEvents(sock, sockEvent, &ne);
+                    if (ne.lNetworkEvents & FD_ACCEPT) {
+                        client = accept(sock, &addr, &len);
+                    }
+                }
 
                 if (client == INVALID_SOCKET) {
                     int err = WSAGetLastError();
                     if (err == WSAEWOULDBLOCK) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         continue;
                     }
                     else {
@@ -179,47 +274,11 @@ public:
                 if (!inet_ntop(AF_INET, &(addr_in->sin_addr), ip, INET_ADDRSTRLEN))
                     error("inet_ntop exception", WSAGetLastError());
 
-                char buffer[1024] = { 0 };
-                int result = 0;
-                std::stringstream input;
-
-                do {
-                    memset(buffer, 0, sizeof(buffer));
-                    result = recv(client, buffer, sizeof(buffer), 0);
-
-                    if (result > 0)  {
-                        input << std::string(buffer).substr(0, 1024);  
-                        if (endsWith(input.str(), "\r\n"))
-                            break;
-                    }
-                    else if (result < 0) {
-                        int last_error = WSAGetLastError();
-                        if (last_error == WSAEWOULDBLOCK) {
-                            fd_set fds;
-                            FD_ZERO(&fds);
-                            FD_SET(client, &fds);
-                            TIMEVAL timeout = {3, 0};
-                            result = select(0, &fds, nullptr, nullptr, &timeout);
-                            if (result <= 0)  {
-                                if (result == 0)
-                                    throw std::runtime_error("recv timeout occurred");
-                                else
-                                    error("client recv select exception", WSAGetLastError());
-                            }
-                        }
-                        else {
-                            error("client recv exception", last_error);
-                        }
-                    }
-
-                } while (result > 0);            
-
-                std::string client_request = input.str();
+                std::string client_request = getClientRequest(client);
                 client_request = client_request.substr(0, client_request.length()-2);
 
-                std::string response = serverCallback(client_request.c_str());
-                if (send(client, response.c_str(), response.length(), 0) == SOCKET_ERROR)
-                    error("send exception", WSAGetLastError());
+                std::vector<uint8_t> response = serverCallback(client_request.c_str());
+                sendServerResponse(client, response);
 
                 if (closesocket(client) == SOCKET_ERROR)
                     error("client close socket exception", WSAGetLastError());

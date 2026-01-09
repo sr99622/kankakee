@@ -48,18 +48,20 @@ class Client
 public:
     SOCKET sock = INVALID_SOCKET;
     sockaddr_in addr;
-    std::string msg;
+    std::vector<uint8_t> request;
     std::function<void(const std::string&)> errorCallback = nullptr;
-    std::function<void(const std::string&)> clientCallback = nullptr;
+    std::function<void(const std::vector<uint8_t>&)> clientCallback = nullptr;
+    int timeout = 5;
 
     ~Client() {  }
 
-    Client(const std::string& ip_addr) {
-        setEndpoint(ip_addr);
+    Client(const std::string& ip, int port) {
+        setEndpoint(ip, port);
     }
 
-    void setEndpoint(const std::string& ip_addr)
+    void setEndpoint(const std::string& ip, int port)
     {
+        /*
         std::string arg = ip_addr;
         std::replace( arg.begin(), arg.end(), ':', ' ');
         auto iss = std::istringstream{arg};
@@ -84,6 +86,7 @@ public:
             }
             count++;
         }   
+        */
 
         struct in_addr tmp;
         int result = inet_pton(AF_INET, ip.c_str(), &tmp);
@@ -118,19 +121,37 @@ public:
         throw std::runtime_error(str.str());
     }
 
-    void transmit(const std::string& msg) {
+    void transmit(const std::vector<uint8_t>& request) {
         Client client = *this;
-        client.msg = msg;
+        client.request = request;
         std::thread thread([](Client c) { c.run(); }, client);
         thread.detach();
     }
 
+    int pollWait(int sock, short event) {
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(sock, &fds);
+        TIMEVAL poll_timeout = {timeout, 0};
+        int result = -1;
+        if (event == POLLOUT)
+            result = select(0, nullptr, &fds, nullptr, &poll_timeout);
+        else if (event == POLLIN)
+            result = select(0, &fds, nullptr, nullptr, &poll_timeout);
+        if (result <= 0)  {
+            if (result == 0)
+                error("client write poll_timeout", WSAGetLastError());
+            else
+                error("client write exception", WSAGetLastError());
+        }
+        return result;
+    }
+
     void run() {
-        std::stringstream output;
+        std::vector<uint8_t> received;
         WSADATA wsaData = { 0 };
 
         try {
-
             int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
             if (result != NO_ERROR) {
                 memset(&wsaData, 0, sizeof(wsaData));
@@ -146,63 +167,51 @@ public:
                 error("client socket ioctl error", WSAGetLastError());
             
             result = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
-            if (result == SOCKET_ERROR) {
+            if (result < 0) {
                 int last_error = WSAGetLastError();
                 if (last_error == WSAEWOULDBLOCK) {
-                    fd_set fds;
-                    FD_ZERO(&fds);
-                    FD_SET(sock, &fds);
-                    TIMEVAL timeout = {3, 0};
-                    result = select(0, nullptr, &fds, nullptr, &timeout);
-                    if (result <= 0)  {
-                        if (result == 0)
-                            throw std::runtime_error("client connect timeout");
-                        else
-                            error("client accept exception", WSAGetLastError());
-                    }
+                    result = pollWait(sock, POLLOUT);
                 }
                 else {
                     error("client connect exception", last_error);
                 }
             }
 
-            result = send(sock, msg.c_str(), msg.length(), 0);
-            if (result == SOCKET_ERROR) {
-                error("client send exception", WSAGetLastError());
-            }
-            else if (result < msg.length()) {
-                throw std::runtime_error("client failed to send complete message");
-            }
-
-            char buffer[1024] = { 0 };
-            result = 0;
+            int accum = 0;
             do {
-                memset(buffer, 0, sizeof(buffer));
-                result = recv(sock, buffer, sizeof(buffer), 0);
-
-                if (result > 0)  {
-                    output << std::string(buffer).substr(0, 1024);                
+                result = send(sock, reinterpret_cast<char*>(request.data() + accum), request.size() - accum, 0);
+                if (result > 0) {
+                    accum += result;
                 }
                 else if (result < 0) {
                     int last_error = WSAGetLastError();
                     if (last_error == WSAEWOULDBLOCK) {
-                        fd_set fds;
-                        FD_ZERO(&fds);
-                        FD_SET(sock, &fds);
-                        TIMEVAL timeout = {3, 0};
-                        result = select(0, &fds, nullptr, nullptr, &timeout);
-                        if (result <= 0)  {
-                            if (result == 0)
-                                throw std::runtime_error("recv timeout occurred");
-                            else
-                                error("client recv select exception", WSAGetLastError());
-                        }
+                        result = pollWait(sock, POLLOUT);
+                    }
+                    else {
+                        error("client send exception", WSAGetLastError());
+                    }
+                }
+            } while (result > 0);
+
+            int BUFFER_SIZE = 1024 * 1024;
+            std::vector<uint8_t> buffer(BUFFER_SIZE);
+            result = 0;
+            do {
+                result = recv(sock, reinterpret_cast<char*>(buffer.data()), buffer.size(), 0);
+
+                if (result > 0)  {
+                    received.insert(received.end(), buffer.data(), buffer.data() + result);
+                }
+                else if (result < 0) {
+                    int last_error = WSAGetLastError();
+                    if (last_error == WSAEWOULDBLOCK) {
+                        result = pollWait(sock, POLLIN);
                     }
                     else {
                         error("client recv exception", last_error);
                     }
                 }
-
             } while (result > 0);            
         }
         catch (const std::exception& ex) {
@@ -226,7 +235,8 @@ public:
         }
 
         if (wsaData.wVersion) WSACleanup();
-        if (clientCallback) clientCallback(output.str());
+        if (clientCallback) clientCallback(received);
+
     }
 };
 
