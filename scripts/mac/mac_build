@@ -1,0 +1,33 @@
+#!/bin/bash
+
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo >> $HOME/.zprofile
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+brew install wget automake nasm libtool pkgconfig
+
+cd $HOME/kankakee/scripts/mac
+
+versions=("3.10.11" "3.11.9" "3.12.9" "3.13.2" "3.14.2")
+for version in "${versions[@]}"; do
+    ./install_python $version
+done
+
+cd $HOME/kankakee
+venvs=("py310" "py311" "py312" "py313" "py314")
+for venv in "${venvs[@]}"; do
+    source $HOME/$venv/bin/activate
+    python --version
+    FILE=build
+    if [ -d "$FILE" ]; then
+        rm -R build
+    fi
+    FILE=kankakee.egg-info
+    if [ -d "$FILE" ]; then
+        rm -R kankakee.egg-info
+    fi
+    pip install -v .
+    pip install build
+    python -m build
+    deactivate
+done

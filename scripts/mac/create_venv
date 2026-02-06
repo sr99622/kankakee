@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <python version as 'X.XX'> <virtual env name>"
+  exit 1 # Exit with an error status
+fi
+
+# If two arguments were provided, proceed with your script logic
+echo "Creating Virtual Environment:"
+echo "Python Version: $1"
+echo "Virtual Environment Name: $2"
+
+"/Library/Frameworks/Python.framework/Versions/$1/bin/python$1" -m venv "$2"
