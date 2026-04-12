@@ -36,13 +36,15 @@ for venv in "${venvs[@]}"; do
   cd $PROJECT_DIR
   python -m build --sdist --wheel
 
+  wheel=$(ls -1 dist/*${venv:2}*)
+  echo $wheel
   ARCH=$(uname -m)
   if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "i386" ]] || [[ "$ARCH" == "i686" ]]; then
     echo "processor architecture is x86"
-    auditwheel repair dist/*.whl --plat manylinux_2_28_x86_64
+    auditwheel repair "$wheel" --plat manylinux_2_28_x86_64
   elif [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "arm"* ]]; then
     echo "aarch64"
-    auditwheel repair dist/*.whl --plat manylinux_2_28_aarch64
+    auditwheel repair "$wheel" --plat manylinux_2_28_aarch64
   else
     echo "ERROR: UNABLE TO BUILD WHEEL - Unknown architecture: $ARCH"
   fi
