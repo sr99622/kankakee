@@ -34,7 +34,7 @@ for venv in "${venvs[@]}"; do
   python --version
   pip install build auditwheel patchelf
   cd $PROJECT_DIR
-  python -m build
+  python -m build --sdist --wheel
 
   ARCH=$(uname -m)
   if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "i386" ]] || [[ "$ARCH" == "i686" ]]; then
