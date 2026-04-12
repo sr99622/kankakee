@@ -1,37 +1,49 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-echo >> $HOME/.zprofile
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)"
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <project directory>" >&2
+  exit 1
+fi
+if [ ! -d "$1" ]; then
+  echo "Project directory $1 does not exist, please enter a valid directory" >&2
+  exit 1
+fi
+if [[ ! -f "$1/pyproject.toml" && ! -f "$1/setup.py" ]]; then
+  echo "Invalid Python project directory, did not find either pyproject.toml or setup.py in $1" >&2
+  exit 1
+fi
+
+BASE=$PWD
+PROJECT_DIR="$BASE/$1"
+echo "Project Directory: $PROJECT_DIR" >&2
+
+if [ ! -f /opt/homebrew/bin/brew ]; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    echo >> $HOME/.zprofile
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
 brew install wget automake nasm libtool pkgconfig
 
 export MACOSX_DEPLOYMENT_TARGET=15.0
 export _PYTHON_HOST_PLATFORM="macosx-15.0-arm64"
 export ARCHFLAGS="-arch arm64"
 
-cd $HOME/kankakee/scripts/mac
-
+cd "$PROJECT_DIR/scripts/mac/python"
 versions=("3.10.11" "3.11.9" "3.12.9" "3.13.2" "3.14.2")
 for version in "${versions[@]}"; do
     ./install_python $version
 done
 
-cd $HOME/kankakee
+cd "$PROJECT_DIR"
 venvs=("py310" "py311" "py312" "py313" "py314")
 for venv in "${venvs[@]}"; do
-    source $HOME/$venv/bin/activate
+    source "$BASE/$venv/bin/activate"
     python --version
-    FILE=build
-    if [ -d "$FILE" ]; then
-        rm -R build
-    fi
-    FILE=kankakee.egg-info
-    if [ -d "$FILE" ]; then
-        rm -R kankakee.egg-info
-    fi
-    pip install -v .
-    pip install build
-    python -m build
+    pip install build delocate
+    python -m build --sdist --wheel
+    wheel="$(ls -1 dist/*${venv:2}*)"
+    echo $wheel
+    delocate-wheel -w fixed_wheels --require-archs=arm64 -v "$wheel"
     deactivate
 done
