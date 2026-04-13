@@ -17,10 +17,6 @@ if not exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\" (
 
 cd %HOMEPATH%\kankakee
 
-if exist dist\ (
-    del /q dist\*
-)
-
 call scripts\windows\python\install
 
 set list=(310 311 312 313 314)
@@ -31,17 +27,7 @@ for %%v in %list% do (
     python.exe -m pip install --upgrade pip
     pip uninstall -y kankakee
     pip install build
-
     cd kankakee
-    if not exist dist/ (
-        mkdir dist
-    )
-    rmdir /q /s build
     python -m build
-    for /f %%F in ('dir /b /a-d dist\*whl') do (
-        pip install dist\%%F
-    )
-    move dist\* ..\dist
-
     call deactivate
 )

@@ -1,7 +1,12 @@
 from importlib.metadata import version, PackageNotFoundError
+import sys
 
-from .kankakee import *
-from .kankakee import __doc__
+if sys.platform == "win32":
+    from kankakee import *
+    from kankakee import __doc__
+else:
+    from .kankakee import *
+    from .kankakee import __doc__
 
 try:
     __version__ = version("kankakee")
