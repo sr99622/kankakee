@@ -20,12 +20,10 @@
 #******************************************************************************/
 
 [build-system]
-#requires = [
-#  "scikit-build-core>=0.10",
-#  "pybind11>=2.11",
-#]
-
-requires = ["scikit-build-core", "pybind11"]
+requires = [
+  "scikit-build-core>=0.10",
+  "pybind11>=2.11",
+]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -48,10 +46,10 @@ classifiers = [
 Homepage = "https://github.com/sr99622/kankakee"
 "Bug Tracker" = "https://github.com/sr99622/kankakee/issues"
 
-#[tool.scikit-build]
-#wheel.packages = ["kankakee"]
-#cmake.build-type = "Release"
-#build-dir = "build/{wheel_tag}"
+[tool.scikit-build]
+wheel.packages = ["kankakee"]
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
 
 # optional, but nice for cleaner logs / reproducibility
-#minimum-version = "build-system.requires"
+minimum-version = "build-system.requires"
