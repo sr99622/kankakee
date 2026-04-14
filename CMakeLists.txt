@@ -18,7 +18,7 @@
 #******************************************************************************/
 
 cmake_minimum_required(VERSION 3.20)
-
+#cmake_minimum_required(VERSION 3.15...3.26)
 project(kankakee VERSION 1.0.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -53,8 +53,12 @@ if(WIN32)
     )
 endif()
 
-install(TARGETS kankakee
-    LIBRARY DESTINATION kankakee
-    RUNTIME DESTINATION kankakee
-    ARCHIVE DESTINATION kankakee
-)
+if(WIN32)
+    install(TARGETS kankakee LIBRARY DESTINATION .)
+else()
+    install(TARGETS kankakee
+        LIBRARY DESTINATION kankakee
+        RUNTIME DESTINATION kankakee
+        ARCHIVE DESTINATION kankakee
+    )
+endif()
