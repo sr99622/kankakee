@@ -16,6 +16,7 @@ if not exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\" (
 )
 
 cd %HOMEPATH%\kankakee
+rmdir /q /s kankakee
 
 call scripts\windows\python\install
 
