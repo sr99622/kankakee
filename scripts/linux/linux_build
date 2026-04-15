@@ -20,8 +20,8 @@ fi
 echo "Project Directory: $PROJECT_DIR" >&2
 
 BASE="$PWD"
-#venvs=("py310" "py311" "py312" "py313" "py314")
-venvs=("py313")
+venvs=("py310" "py311" "py312" "py313" "py314")
+#venvs=("py313")
 for venv in "${venvs[@]}"; do
   echo "Python venv: $venv" >&2
   if [ ! -d "$BASE/$venv" ]; then
