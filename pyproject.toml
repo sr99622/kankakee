@@ -30,7 +30,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "kankakee"
-version = "1.0.4"
+version = "1.0.5"
 description = "A python client/server module for onvif-gui"
 readme = "README.md"
 requires-python = ">=3.10"
