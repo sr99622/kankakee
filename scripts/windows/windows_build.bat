@@ -16,7 +16,6 @@ if not exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\" (
 )
 
 cd %HOMEPATH%\kankakee
-rmdir /q /s kankakee
 
 call scripts\windows\python\install
 
@@ -26,9 +25,9 @@ for %%v in %list% do (
     %LOCALAPPDATA%\Programs\Python\Python%%v\python -m venv py%%v
     call py%%v\Scripts\activate
     python.exe -m pip install --upgrade pip
-    pip uninstall -y kankakee
-    pip install build
+    pip install build delvewheel
     cd kankakee
     python -m build
+    delvewheel repair dist\*cp%%v-cp%%v-*.whl
     call deactivate
 )

@@ -53,12 +53,8 @@ if(WIN32)
     )
 endif()
 
-if(WIN32)
-    install(TARGETS kankakee LIBRARY DESTINATION .)
-else()
-    install(TARGETS kankakee
-        LIBRARY DESTINATION kankakee
-        RUNTIME DESTINATION kankakee
-        ARCHIVE DESTINATION kankakee
-    )
-endif()
+install(TARGETS kankakee
+    LIBRARY DESTINATION kankakee
+    RUNTIME DESTINATION kankakee
+    ARCHIVE DESTINATION kankakee
+)
