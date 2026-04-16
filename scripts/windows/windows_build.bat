@@ -19,7 +19,8 @@ cd %HOMEPATH%\kankakee
 
 call scripts\windows\python\install
 
-set list=(310 311 312 313 314)
+rem set list=(310 311 312 313 314)
+set list=(313)
 for %%v in %list% do (
     cd %HOMEPATH%
     %LOCALAPPDATA%\Programs\Python\Python%%v\python -m venv py%%v
@@ -31,3 +32,4 @@ for %%v in %list% do (
     delvewheel repair dist\*cp%%v-cp%%v-*.whl
     call deactivate
 )
+cd %HOMEPATH%
