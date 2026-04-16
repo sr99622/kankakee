@@ -9,6 +9,8 @@
 #include <map>
 #include <regex>
 #include <algorithm>
+#include <array>
+#include <memory>
 
 #include <nlohmann/json.hpp>
 //#include "wabash.hpp"
@@ -25,6 +27,84 @@ public:
     NetUtil() { }
     ~NetUtil() { }
 
+
+    std::vector<Adapter> getAllAdapters() const {
+        std::vector<Adapter> result;
+
+        json data = json::parse(exec("ip -j addr"));
+        json gdata = json::parse(exec("ip -j route show default"));
+        auto metrics = ParseIpRouteOutput(exec("ip route"));
+
+        for (auto& x : data.items()) {
+            Adapter adapter;
+            auto if_data = x.value();
+
+            if (if_data.contains("ifname") && if_data["ifname"].is_string())
+                adapter.name = if_data["ifname"].get<std::string>();
+
+            if (if_data.contains("operstate") && if_data["operstate"].is_string())
+                adapter.up = (if_data["operstate"].get<std::string>() == "UP");
+
+            if (if_data.contains("address") && if_data["address"].is_string())
+                adapter.mac_address = if_data["address"].get<std::string>();
+
+            if (if_data.contains("addr_info") && if_data["addr_info"].is_array()) {
+                for (auto& y : if_data["addr_info"].items()) {
+                    auto addr = y.value();
+
+                    if (addr.contains("family") && addr["family"].is_string() &&
+                        addr["family"].get<std::string>() == "inet") {
+
+                        if (addr.contains("local") && addr["local"].is_string())
+                            adapter.ip_address = addr["local"].get<std::string>();
+
+                        if (addr.contains("prefixlen") && addr["prefixlen"].is_number_integer())
+                            adapter.netmask = prefixLengthToMask(addr["prefixlen"].get<int>());
+
+                        if (addr.contains("broadcast") && addr["broadcast"].is_string())
+                            adapter.broadcast = addr["broadcast"].get<std::string>();
+
+                        adapter.dhcp = false;
+                        if (addr.contains("dynamic") && addr["dynamic"].is_boolean())
+                            adapter.dhcp = addr["dynamic"].get<bool>();
+                    }
+                }
+            }
+
+            for (auto& y : gdata.items()) {
+                auto g_info = y.value();
+
+                if (g_info.contains("dev") && g_info["dev"].is_string() &&
+                    adapter.name == g_info["dev"].get<std::string>()) {
+                    if (g_info.contains("gateway") && g_info["gateway"].is_string())
+                        adapter.gateway = g_info["gateway"].get<std::string>();
+                }
+            }
+
+            if (!adapter.name.empty()) {
+                std::stringstream str;
+                str << "nmcli device show " << adapter.name;
+                std::string nmcli = exec(str.str().c_str());
+                auto fields = parseNMCLI(nmcli);
+
+                if (fields.count("GENERAL.TYPE"))
+                    adapter.type = fields["GENERAL.TYPE"];
+                if (fields.count("IP4.DNS[1]"))
+                    adapter.dns.push_back(fields["IP4.DNS[1]"]);
+                if (fields.count("GENERAL.CONNECTION"))
+                    adapter.description = fields["GENERAL.CONNECTION"];
+            }
+
+            auto metric_it = metrics.find(adapter.name);
+            adapter.priority = (metric_it == metrics.end()) ? -1 : metric_it->second;
+
+            result.push_back(adapter);
+        }
+
+        return result;
+    }
+
+    /*
     std::vector<Adapter> getAllAdapters() const {
         std::vector<Adapter> result;
 
@@ -76,6 +156,7 @@ public:
 
         return result;
     }
+    */
 
     std::string trim(const std::string &s) const {
         size_t start = s.find_first_not_of(" \t");
