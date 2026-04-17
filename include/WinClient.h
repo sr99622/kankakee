@@ -61,33 +61,6 @@ public:
 
     void setEndpoint(const std::string& ip, int port)
     {
-        /*
-        std::string arg = ip_addr;
-        std::replace( arg.begin(), arg.end(), ':', ' ');
-        auto iss = std::istringstream{arg};
-        auto str = std::string{};
-
-        std::string ip;
-        int port;
-        int count = 0;
-        while (iss >> str) {
-            if (count == 0) {
-                ip = str;
-            }
-            if (count == 1) {
-                try {
-                    port = std::stoi(str);
-                }
-                catch (const std::exception& ex) {
-                    std::stringstream str;
-                    str << "client create invalid port : " << ex.what();
-                    throw std::runtime_error(str.str());
-                }
-            }
-            count++;
-        }   
-        */
-
         struct in_addr tmp;
         int result = inet_pton(AF_INET, ip.c_str(), &tmp);
         if (result <= 0) {

@@ -18,18 +18,20 @@ class ServerProtocols():
     
     def error(self, msg):
         logger.error(f"server protocol error: {msg}")
-        logger.debug(traceback.format_exc())
 
 class MainObject():
     def __init__(self):
         super().__init__()
-        self.server = None
-        self.serverProtocols = ServerProtocols(self)
-
-        self.server = Server("127.0.0.1", 8000)
-        self.server.serverCallback = self.serverProtocols.callback
-        self.server.errorCallback = self.serverProtocols.error
-        self.server.start()
+        try:
+            self.server = None
+            self.serverProtocols = ServerProtocols(self)
+            self.server = Server("127.0.0.1", 8000)
+            self.server.serverCallback = self.serverProtocols.callback
+            self.server.errorCallback = self.serverProtocols.error
+            self.server.start()
+        except Exception as ex:
+            logger.error(f'Error initializing Server : {ex}')
+            logger.debug(traceback.format_exc())
 
 if __name__ == "__main__":
     mo = MainObject()

@@ -22,27 +22,20 @@ class ServerProtocols():
     
     def error(self, msg):
         logger.error(f"server protocol error: {msg}")
-        logger.debug(traceback.format_exc())
 
 class ClientProtocols():
     def __init__(self, mw):
         self.mw = mw
         
     def callback(self, arg):
-        try:
-            index = bytearray(arg).find(b'\r\n')
-            msg = bytearray(arg[:index]).decode('utf-8')
-            configs = msg.split("\n\n")
-            for config in configs:
-                print(f"from client callback {config}")
-
-        except Exception as ex:
-            logger.error("EXCEPTION ", ex)
-            return
+        index = bytearray(arg).find(b'\r\n')
+        msg = bytearray(arg[:index]).decode('utf-8')
+        configs = msg.split("\n\n")
+        for config in configs:
+            print(f"from client callback {config}")
 
     def error(self, msg):
         logger.error(f'Client protocol error: {msg}')
-        logger.debug(traceback.format_exc())
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -67,14 +60,18 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(panel)
 
     def btnServerClicked(self):
-        if self.server:
-            self.server.stop()
-            self.server = None
-        else:
-            self.server = Server("127.0.0.1", 8000)
-            self.server.serverCallback = self.serverProtocols.callback
-            self.server.errorCallback = self.serverProtocols.error
-            self.server.start()
+        try:
+            if self.server:
+                self.server.stop()
+                self.server = None
+            else:
+                self.server = Server("127.0.0.1", 8000)
+                self.server.serverCallback = self.serverProtocols.callback
+                self.server.errorCallback = self.serverProtocols.error
+                self.server.start()
+        except Exception as ex:
+            logger.error(f'Error initializing Server : {ex}')
+            logger.debug(traceback.format_exc())
 
     def btnClientClicked(self):
         try:
@@ -88,15 +85,6 @@ class MainWindow(QMainWindow):
             logger.error(f'Error initializing Client : {ex}')
             logger.debug(traceback.format_exc())
         
-
-    def initializeClient(self):
-        try:
-            self.client = Client("127.0.0.1", 8000)
-            self.client.clientCallback = self.clientProtocols.callback
-            self.client.errorCallback = self.clientProtocols.error
-        except Exception as ex:
-            logger.error(f'Error initializing Client : {ex}')
-            logger.debug(traceback.format_exc())
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
