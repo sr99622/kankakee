@@ -22,8 +22,6 @@
 #include <sstream>
 #include <iomanip>
 
-//#include "wabash.hpp"
-
 #define WORKING_BUFFER_SIZE 15000
 #define MAX_TRIES 3
 
@@ -40,7 +38,8 @@ public:
 
     NetUtil() {
         int result = NO_ERROR;
-        if (result = WSAStartup(MAKEWORD(2, 2), &wsaData) != NO_ERROR) 
+        result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        if (result != NO_ERROR)
             error("server wsa startup exception", result);
     }
 
@@ -138,20 +137,21 @@ public:
                     pPrefix = pPrefix->Next;
                 }
 
+
                 adapter.dhcp = false;
                 if (pCurrAddresses->Flags & IP_ADAPTER_DHCP_ENABLED) {
                     adapter.dhcp = true;
-                    std::cout << "\tDHCP Server Address: " << getSockIPAddress(pCurrAddresses->Dhcpv4Server.lpSockaddr) << std::endl;
+                    std::cout << "\tDHCP Server Address: "
+                            << getSockIPAddress(pCurrAddresses->Dhcpv4Server.lpSockaddr)
+                            << std::endl;
                 }
                 else {
                     printf("\tDHCP not enabled\n");
                 }
 
-                std::wstring str1(pCurrAddresses->Description);
-                adapter.description = std::string(str1.begin(), str1.end());
-                std::wstring str2(pCurrAddresses->FriendlyName);
-                adapter.name = std::string(str2.begin(), str2.end());
-                //adapter.name = pCurrAddresses->FriendlyName;
+                adapter.description = wideToUtf8(pCurrAddresses->Description);
+                adapter.name = wideToUtf8(pCurrAddresses->FriendlyName);
+
                 printf("\tDescription: %wS\n", pCurrAddresses->Description);
                 printf("\tFriendly name: %wS\n", pCurrAddresses->FriendlyName);
 
@@ -204,14 +204,6 @@ public:
         if (pAddresses) {
             FREE(pAddresses);
         }
-        return results;
-    }
-
-    std::vector<std::string> getIPAddress() const {
-        std::vector<std::string> results;
-        /* Declare and initialize variables */
-
-
         return results;
     }
 
@@ -407,52 +399,28 @@ public:
         return result;
     }
 
+    std::string wideToUtf8(const wchar_t* input) const {
+        if (!input) {
+            return {};
+        }
+
+        int size = WideCharToMultiByte(
+            CP_UTF8, 0, input, -1, nullptr, 0, nullptr, nullptr
+        );
+        if (size <= 0) {
+            return {};
+        }
+
+        std::string output(size - 1, '\0');  // exclude terminating null
+        WideCharToMultiByte(
+            CP_UTF8, 0, input, -1, output.data(), size, nullptr, nullptr
+        );
+        return output;
+    }
+
 };
 
 }
 
 #endif // WINNETUTIL_HPP
 
-
-/*
-    std::vector<std::string> getIPAddress() const {
-        char buf[128] = { 0 };
-        std::string result;
-        std::vector<std::string> results;
-
-        DWORD dwSize = 0;
-        
-        PMIB_IPADDRTABLE pIPAddrTable = (MIB_IPADDRTABLE *) malloc(sizeof(MIB_IPADDRTABLE));
-        if (pIPAddrTable) {
-            if (GetIpAddrTable(pIPAddrTable, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER) {
-                free(pIPAddrTable);
-                pIPAddrTable = (MIB_IPADDRTABLE *) malloc(dwSize);
-            }
-            if (pIPAddrTable == NULL) {
-                return results;
-            }
-        }
-
-        DWORD dwRetVal = 0;
-        if ((dwRetVal = GetIpAddrTable(pIPAddrTable, &dwSize, 0)) != NO_ERROR) {
-            return results;
-        }
-
-        IN_ADDR IPAddr;
-        int p = 0;
-        while (p < (int)pIPAddrTable->dwNumEntries) {
-            IPAddr.S_un.S_addr = (u_long)pIPAddrTable->table[p].dwAddr;
-            strcpy(buf, inet_ntoa(IPAddr));
-            results.push_back(std::string(buf));
-            p++;
-        }
-
-        if (pIPAddrTable) {
-            free(pIPAddrTable);
-            pIPAddrTable = nullptr;
-        }
-
-        return results;
-    }
-
-*/

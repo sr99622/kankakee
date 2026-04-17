@@ -32,8 +32,6 @@
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <iostream>
-//#include "wabash.hpp"
-
 
 // Compute sockaddr padded size (macOS-safe)
 #ifndef SA_SIZE
@@ -53,38 +51,6 @@ public:
 
     NetUtil() { }
     ~NetUtil() { }
-
-    std::vector<std::string> getIPAddress() const {
-        char buf[128] = { 0 };
-        std::vector<std::string> result;
-        /*
-        char *address;
-        struct ifaddrs *interfaces = NULL;
-        struct ifaddrs *ifa = NULL;
-        int success = 0;
-        success = getifaddrs(&interfaces);
-        if (success == 0) {
-            ifa = interfaces;
-            while (ifa != NULL) {
-
-                sa_family_t fam = ifa->ifa_addr->sa_family;
-
-
-                
-                if (fam == AF_LINK) {
-                    struct sockaddr_dl *sdl = (struct sockaddr_dl *)ifa->ifa_addr;
-                    unsigned char* ptr = (unsigned char *)LLADDR(sdl);
-                    
-                    printf("Interface: %s, MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-                        ifa->ifa_name, *ptr, *(ptr+1), *(ptr+2), *(ptr+3), *(ptr+4), *(ptr+5));             
-                }
-                ifa = ifa->ifa_next;
-            }
-        }
-        freeifaddrs(interfaces);
-        */
-        return result;
-    }
 
     std::vector<Adapter> getAllAdapters() const {
         std::vector<Adapter> result;
@@ -134,25 +100,6 @@ public:
             adapter.up = hasLink;
             adapter.priority = priority;
             result.push_back(adapter);
-
-            /*
-            std::cout << "bsd name:   " << bsd << "\n"
-                      << "display:    " << displayName << "\n"
-                      << "if_type:    " << if_type << "\n"
-                      << "priority:   " << (priority < 0 ? "" : std::to_string(priority)) << "\n"
-                      << "hardware:   " << hardware << "\n"
-                      << "service:    " << serviceID << "\n"
-                      << "dhcp:       " << dhcp << "\n"
-                      << "address:    " << address << "\n"
-                      << "netmask:    " << netmask << "\n"
-                      << "broadcast:  " << broadcast << "\n"
-                      << "gateway:    " << gateway << "\n"
-                      << "status:     " << (hasLink ? "UP" : "DOWN") << "\n";
-            for (int j = 0; j < dns.size(); j++)
-                std::cout << "dns " << j << ":      " << dns[j] << "\n";
-            std::cout << std::endl;
-            */
-                
         }
         return result;
     }
@@ -243,7 +190,7 @@ public:
             }
         }
         catch (const std::exception& e) {
-            //std::cout << "get gateway error: " << e.what() << std::endl;
+            std::cout << "get gateway error: " << e.what() << std::endl;
         }
         return result;
     }
@@ -280,7 +227,7 @@ public:
                 results.insert(std::pair("BroadcastAddress", getStringFromRef((CFStringRef)CFArrayGetValueAtIndex(broadcastAddresses, 0))));
         }
         catch (const std::exception& e) {
-            //std::cout << "gateway error: " << e.what() << std::endl;
+            std::cout << "gateway error: " << e.what() << std::endl;
         }
 
         if (store) CFRelease(store);
@@ -398,7 +345,7 @@ public:
             result = true;
         }
         catch (const std::exception& e) {
-            //std::cout << "ERROR: " << e.what() << std::endl;
+            std::cout << "dhcpEnabled error: " << e.what() << std::endl;
         }
 
         if (dhcpInfo) CFRelease(dhcpInfo);
@@ -461,7 +408,7 @@ public:
             }
         }
         catch (const std::exception& e) {
-            //std::cout << "DNSForService error: " << e.what() << std::endl;
+            std::cout << "DNSForService error: " << e.what() << std::endl;
         }
 
         if (dnsInfo) CFRelease(dnsInfo);
