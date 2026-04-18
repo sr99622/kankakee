@@ -45,7 +45,6 @@
     #include "MacNetUtil.h"
 #endif
 
-
 namespace py = pybind11;
 
 namespace kankakee

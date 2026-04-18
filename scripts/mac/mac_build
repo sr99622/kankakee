@@ -19,7 +19,6 @@ fi
 
 echo "Project Directory: $PROJECT_DIR" >&2
 
-
 if [ ! -f /opt/homebrew/bin/brew ]; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     echo >> $HOME/.zprofile
