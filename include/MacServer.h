@@ -17,8 +17,8 @@
 *
 *********************************************************************/
 
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef MACSERVER_H
+#define MACSERVER_H
 
 #include <cstring>
 #include <iostream>
@@ -297,4 +297,4 @@ public:
 
 }
 
-#endif // SERVER_H
+#endif // MACSERVER_H
