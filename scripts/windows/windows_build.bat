@@ -2,8 +2,8 @@
 echo Delete system python from host machine before compiling, otherwise linking will not work
 
 
-if not exist "%ALLUSERSPROFILE%\chocolatey\bin\" (
-    @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+if not exist "%PROGRAMDATA%\chocolatey\bin\" (
+    @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%PROGRAMDATA%\chocolatey\bin"
 )
 if not exist "%ProgramFiles%\Git\" (
     choco install -y git
