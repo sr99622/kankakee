@@ -61,11 +61,11 @@ Write-Host "Base Directory: $BASE"
 
 Set-Location $PROJECT_DIR
 
-if (Test-Path "dist") {
-    Remove-Item "dist\*" -Force -ErrorAction SilentlyContinue
+if (Test-Path "$BASE\dist") {
+    Remove-Item "$BASE\dist\*" -Force -ErrorAction SilentlyContinue
 }
-if (Test-Path "wheelhouse") {
-    Remove-Item "wheelhouse\*" -Force -ErrorAction SilentlyContinue
+if (Test-Path "$BASE\wheelhouse") {
+    Remove-Item "$BASE\wheelhouse\*" -Force -ErrorAction SilentlyContinue
 }
 
 & (Join-Path $PROJECT_DIR "scripts\windows\python\install.ps1")
@@ -85,10 +85,10 @@ foreach ($v in $pyList) {
     & $venvPython -m pip install build delvewheel
 
     Set-Location $PROJECT_DIR
-    & $venvPython -m build
+    & $venvPython -m build --outdir "$BASE\dist"
 
-    $wheel = Get-ChildItem "dist\*cp$v-cp$v-*.whl" | Select-Object -Last 1
-    & $venvPython -m delvewheel repair $wheel.FullName
+    $wheel = Get-ChildItem "$BASE\dist\*cp$v-cp$v-*.whl" | Select-Object -Last 1
+    & $venvPython -m delvewheel repair $wheel.FullName --wheel-dir "$BASE\wheelhouse"
 
     Set-Location $BASE
 }
