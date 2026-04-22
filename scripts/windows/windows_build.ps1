@@ -87,8 +87,11 @@ foreach ($v in $pyList) {
     Set-Location $PROJECT_DIR
     & $venvPython -m build --outdir "$BASE\dist"
 
-    $wheel = Get-ChildItem "$BASE\dist\*cp$v-cp$v-*.whl" | Select-Object -Last 1
-    & $venvPython -m delvewheel repair $wheel.FullName --wheel-dir "$BASE\wheelhouse"
+    & $venvPython -m delvewheel repair "$BASE\dist\kankakee*cp$v-cp$v-*.whl" --wheel-dir "$BASE\wheelhouse"
+    $fixedWheels = Get-ChildItem "$BASE\wheelhouse\kankakee*cp$v-cp$v-*.whl" -ErrorAction SilentlyContinue
+    foreach ($wheel in $fixedWheels) {
+        & $venvPython -m pip install --force-reinstall $wheel.FullName
+    }
 
     Set-Location $BASE
 }
