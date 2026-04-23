@@ -3,6 +3,7 @@ import numpy as np
 import io
 from loguru import logger
 import traceback
+from time import sleep
 
 class ServerProtocols():
     def __init__(self, mo):
@@ -36,5 +37,5 @@ class MainObject():
 if __name__ == "__main__":
     mo = MainObject()
     while True:
-        ...
+        sleep(100)
     
