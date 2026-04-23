@@ -14,17 +14,7 @@ class ListenProtocols():
             logger.error(msg)
 
     def callback(self, msg):
-        #arguments = msg.split("\n\n")
-        #timestamp = arguments.pop(0)
-        #if timestamp == self.last_timestamp:
-        #    return
-        
-        #self.last_timestamp = timestamp
         print(msg)
-        #cmd = arguments.pop(0)
-        #print(f"CALLBACK RETURN: {cmd}")
-        #print(f"ALARM STATE: {arguments}")
-        #print(f"LAST ALARM: {datetime.now()}")
 
 class MainObject():
     def __init__(self):
@@ -40,9 +30,9 @@ class MainObject():
                 self.listener.errorCallback = self.listenProtocols.error
             if not self.listener.running:
                 self.listener.start()
-                logger.debug("Alarm Listener was started successfully")
+                logger.debug("Listener was started successfully")
         except Exception as ex:
-            logger.error(f'Error starting Alarm Listener : {ex}')
+            logger.error(f'Error starting Listener : {ex}')
             logger.debug(traceback.format_exc())
 
 if __name__ == "__main__":
