@@ -7,7 +7,7 @@ class MainObject():
     def __init__(self):
         print("construct MainObject")
         try:
-            self.broadcaster = kankakee.Broadcaster('0.0.0.0')
+            self.broadcaster = kankakee.Broadcaster('0.0.0.0', '239.255.255.247', 8080)
             self.broadcaster.errorCallback = self.errorCallback
             self.broadcaster.enableLoopback(True)
         except Exception as ex:

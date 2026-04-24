@@ -18,19 +18,14 @@ class ListenProtocols():
 
 class MainObject():
     def __init__(self):
-        self.listener = None
-        self.listenProtocols = ListenProtocols(self)
-        self.start("0.0.0.0")
-
-    def start(self, ip_addr):
         try:
-            if not self.listener:
-                self.listener = kankakee.Listener([ip_addr])
-                self.listener.listenCallback = self.listenProtocols.callback
-                self.listener.errorCallback = self.listenProtocols.error
-            if not self.listener.running:
-                self.listener.start()
-                logger.debug("Listener was started successfully")
+            self.listener = None
+            self.listenProtocols = ListenProtocols(self)
+            self.listener = kankakee.Listener('0.0.0.0', '239.255.255.247', 8080)
+            self.listener.listenCallback = self.listenProtocols.callback
+            self.listener.errorCallback = self.listenProtocols.error
+            self.listener.start()
+            logger.debug("Listener was started successfully")
         except Exception as ex:
             logger.error(f'Error starting Listener : {ex}')
             logger.debug(traceback.format_exc())

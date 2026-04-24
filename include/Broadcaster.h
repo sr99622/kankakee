@@ -28,22 +28,19 @@
 #include <iostream>
 
 #ifdef _WIN32
-	#ifndef UNICODE
-	#define UNICODE
-	#endif
-	#define WIN32_LEAN_AND_MEAN
-	#include <winsock2.h>
-	#include <ws2tcpip.h>
+  #ifndef UNICODE
+  #define UNICODE
+  #endif
+  #define WIN32_LEAN_AND_MEAN
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
 #else
-	#include <unistd.h> 
-	#include <sys/types.h> 
-	#include <sys/socket.h> 
-	#include <arpa/inet.h> 
-	#include <netinet/in.h>
+  #include <unistd.h> 
+  #include <sys/types.h> 
+  #include <sys/socket.h> 
+  #include <arpa/inet.h> 
+  #include <netinet/in.h>
 #endif
-
-#define PORT 8080 
-#define MAXLINE 1024 
 
 namespace kankakee
 
@@ -52,63 +49,66 @@ namespace kankakee
 class Broadcaster
 {
 public:
-	struct sockaddr_in servaddr;
-	std::string if_addr;
-	int sock = -1;
-	std::function<void(const std::string&)> errorCallback = nullptr;
+  struct sockaddr_in servaddr;
+  std::string if_addr;
+  std::string mult_addr;
+  int port;
+  int sock = -1;
+  std::function<void(const std::string&)> errorCallback = nullptr;
 
-	~Broadcaster() { 
-		if (sock > -1) close(sock);
-	}
-	
-	Broadcaster(const std::string& if_addr) : if_addr(if_addr) {
-		int loopback = 0;
-		memset(&servaddr, 0, sizeof(servaddr)); 
-		servaddr.sin_family = AF_INET; 
-		servaddr.sin_port = htons(PORT); 
-		servaddr.sin_addr.s_addr = inet_addr("239.255.255.247");
+  ~Broadcaster() { 
+    if (sock > -1) close(sock);
+  }
+  
+  Broadcaster(const std::string& if_addr, const std::string& mult_addr, int port) : 
+        if_addr(if_addr), mult_addr(mult_addr), port(port) {
+    int loopback = 0;
+    memset(&servaddr, 0, sizeof(servaddr)); 
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_port = htons(port); 
+    servaddr.sin_addr.s_addr = inet_addr(mult_addr.c_str());
 
-		struct in_addr interface;
-		memset(&interface, 0, sizeof(interface));
-		interface.s_addr = inet_addr(if_addr.c_str());
-		if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-			error("broadcast socket creation error", errno);
+    struct in_addr interface;
+    memset(&interface, 0, sizeof(interface));
+    interface.s_addr = inet_addr(if_addr.c_str());
+    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+      error("broadcast socket creation error", errno);
 
-		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-			error("IP_MULTICAST_LOOP error: ", errno);
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
+      error("IP_MULTICAST_LOOP error: ", errno);
 
-		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&interface, sizeof(interface)) < 0)
-			error("IP_MULTICAST_IF error: ", errno);
-	}
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&interface, sizeof(interface)) < 0)
+      error("IP_MULTICAST_IF error: ", errno);
+  }
 
-	void enableLoopback(bool arg) {
-		int loopback = arg ? 1 : 0;
-		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-			error("IP_MULTICAST_LOOP error: ", errno);
-	}
+  void enableLoopback(bool arg) {
+    int loopback = arg ? 1 : 0;
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
+      error("IP_MULTICAST_LOOP error: ", errno);
+  }
 
-	void send(const std::string& msg) {
-		try {
-			if (sendto(sock, msg.c_str(), msg.length(), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)
-				error("send error", errno);
-		}
-		catch (const std::exception& ex) {
-			alert(ex);
-		}
-	}
-	
-	void error(const std::string& msg, int err) {
-		std::stringstream str;
-		str << msg << " : " << strerror(err);
-		throw std::runtime_error(str.str());
-	}
+  void send(const std::string& msg) {
+    try {
+      if (sendto(sock, msg.c_str(), msg.length(), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)
+        error("send error", errno);
+    }
+    catch (const std::exception& ex) {
+      alert(ex);
+    }
+  }
+  
+  void error(const std::string& msg, int err) {
+    std::stringstream str;
+    str << msg << " : " << strerror(err);
+    throw std::runtime_error(str.str());
+  }
 
-	void alert(const std::exception& ex) {
-        std::stringstream str;
-        str << "Server exception: " << ex.what();
-        if (errorCallback) errorCallback(str.str());
-        else std::cout << str.str() << std::endl;
-	}
+  void alert(const std::exception& ex) {
+    std::stringstream str;
+    str << "Server exception: " << ex.what();
+    if (errorCallback) errorCallback(str.str());
+    else std::cout << str.str() << std::endl;
+  }
 };
 
 }
