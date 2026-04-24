@@ -70,7 +70,7 @@ PYBIND11_MODULE(kankakee, m)
         .def_readwrite("clientCallback", &Client::clientCallback);
 
     py::class_<Broadcaster>(m, "Broadcaster")
-        .def(py::init<const std::vector<std::string>&>())
+        .def(py::init<const std::string&>())
         .def("send", &Broadcaster::send)
         .def("enableLoopback", &Broadcaster::enableLoopback)
         .def_readwrite("errorCallback", &Broadcaster::errorCallback);

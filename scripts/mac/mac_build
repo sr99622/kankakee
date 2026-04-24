@@ -39,14 +39,17 @@ for version in "${versions[@]}"; do
 done
 
 cd "$PROJECT_DIR"
-venvs=("py310" "py311" "py312" "py313" "py314")
+#venvs=("py310" "py311" "py312" "py313" "py314")
+venvs=("py313")
 for venv in "${venvs[@]}"; do
     source "$BASE/$venv/bin/activate"
     python --version
     pip install build delocate
-    python -m build --sdist --wheel
-    wheel="$(ls -1 dist/*${venv:2}*)"
+    python -m build --outdir "$BASE/dist"
+    wheel="$(ls -1 $BASE/dist/*${venv:2}*)"
     echo $wheel
-    delocate-wheel -w fixed_wheels --require-archs=arm64 -v "$wheel"
+    delocate-wheel -w "$BASE/wheelhouse" --require-archs=arm64 -v "$wheel"
+    fixed_wheel="$(ls -1 $BASE/wheelhouse/*${venv:2}*)"
+    pip install --force-reinstall "$fixed_wheel"
     deactivate
 done

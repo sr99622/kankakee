@@ -53,60 +53,47 @@ class Broadcaster
 {
 public:
 	struct sockaddr_in servaddr;
-	std::vector<std::string> if_addrs;
-	std::vector<int> socks;
+	std::string if_addr;
+	int sock = -1;
 	std::function<void(const std::string&)> errorCallback = nullptr;
 
 	~Broadcaster() { 
-		for (int i = 0; i < socks.size(); i++) 
-			if (socks[i] > -1) close(socks[i]);
-
-		socks.clear();
-		if_addrs.clear();
+		if (sock > -1) close(sock);
 	}
 	
-	Broadcaster(const std::vector<std::string>& if_addrs) : if_addrs(if_addrs) {
-		int sock = -1;
+	Broadcaster(const std::string& if_addr) : if_addr(if_addr) {
 		int loopback = 0;
 		memset(&servaddr, 0, sizeof(servaddr)); 
 		servaddr.sin_family = AF_INET; 
 		servaddr.sin_port = htons(PORT); 
 		servaddr.sin_addr.s_addr = inet_addr("239.255.255.247");
 
-		for (int i = 0; i < if_addrs.size(); i++) {
-			struct in_addr interface;
-			memset(&interface, 0, sizeof(interface));
-			interface.s_addr = inet_addr(if_addrs[i].c_str());
-			if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-				error("broadcast socket creation error", errno);
+		struct in_addr interface;
+		memset(&interface, 0, sizeof(interface));
+		interface.s_addr = inet_addr(if_addr.c_str());
+		if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+			error("broadcast socket creation error", errno);
 
-			if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-				error("IP_MULTICAST_LOOP error: ", errno);
+		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
+			error("IP_MULTICAST_LOOP error: ", errno);
 
-			if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&interface, sizeof(interface)) < 0)
-				error("IP_MULTICAST_IF error: ", errno);
-			
-			socks.push_back(sock);
-		}
+		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&interface, sizeof(interface)) < 0)
+			error("IP_MULTICAST_IF error: ", errno);
 	}
 
 	void enableLoopback(bool arg) {
-		for (int i = 0; i < socks.size(); i++) {
-			int loopback = arg ? 1 : 0;
-			if (setsockopt(socks[i], IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-				error("IP_MULTICAST_LOOP error: ", errno);
-		}
+		int loopback = arg ? 1 : 0;
+		if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
+			error("IP_MULTICAST_LOOP error: ", errno);
 	}
 
 	void send(const std::string& msg) {
-		for (int i = 0; i < socks.size(); i++) {
-			try {
-				if (sendto(socks[i], msg.c_str(), msg.length(), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)
-					error("send error", errno);
-			}
-			catch (const std::exception& ex) {
-				alert(ex);
-			}
+		try {
+			if (sendto(sock, msg.c_str(), msg.length(), 0, (const struct sockaddr *) &servaddr, sizeof(servaddr)) < 0)
+				error("send error", errno);
+		}
+		catch (const std::exception& ex) {
+			alert(ex);
 		}
 	}
 	
