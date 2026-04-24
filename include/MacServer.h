@@ -156,7 +156,7 @@ public:
             result = recv(client, buffer, sizeof(buffer), 0);
 
             if (result > 0) {
-                input << std::string(buffer).substr(0, 1024);
+                input << std::string(buffer).substr(0, result);
                 if (endsWith(input.str(), "\r\n")) {
                     std::cout << "HIT THE EOL SIGNAL" << std::endl;
                     break;
