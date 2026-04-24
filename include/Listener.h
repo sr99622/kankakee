@@ -51,7 +51,7 @@ public:
   std::function<void(const std::string&)> listenCallback = nullptr;
 
   ~Listener() {
-    if (sock > 0) close(sock);
+    if (sock > -1) close(sock);
   }
   
   Listener(const std::string& ip_addr, const std::string& mult_addr, int port) : 
@@ -155,7 +155,7 @@ public:
     }
 
     try {
-      if (sock > 0) {
+      if (sock > -1) {
         if (close(sock) < 0)
           error("socket close exception", errno);
         sock = -1;

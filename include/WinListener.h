@@ -35,9 +35,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#define PORT 8080 
 #define BUF_SIZE 1024
-#define MULTICAST_ADDR "239.255.255.247"
 
 namespace kankakee
 
@@ -49,14 +47,18 @@ public:
   int sock = -1;
   bool running = false;
   struct sockaddr_in servaddr;
-  std::vector<std::string> ip_addrs;
+  std::string ip_addr;
+  std::string mult_addr;
+  int port;
   std::function<void(const std::string&)> errorCallback = nullptr;
   std::function<void(const std::string&)> listenCallback = nullptr;
 
-  ~Listener() { if (sock > 0) close(sock); }
-  Listener(const std::vector<std::string>& ip_addrs) : ip_addrs(ip_addrs) { }
-
-  void initialize() {
+  ~Listener() {
+    if (sock > -1) close(sock);
+  }
+  
+  Listener(const std::string& ip_addr, const std::string& mult_addr, int port) : 
+      ip_addr(ip_addr), mult_addr(mult_addr), port(port) { 
     if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
       error("creation error", WSAGetLastError());
 
@@ -71,19 +73,17 @@ public:
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_port = htons(port); 
     
     if (bind(sock, (const struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
       error("bind error", WSAGetLastError()); 
 
-    for (int i = 0; i < ip_addrs.size(); i++) {
-      struct ip_mreq group;
-      memset(&group, 0, sizeof(group));
-      group.imr_multiaddr.s_addr = inet_addr(MULTICAST_ADDR);
-      group.imr_interface.s_addr = inet_addr(ip_addrs[i].c_str());
-      if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0)
-        error("add multicast membership error", WSAGetLastError());
-    }
+    struct ip_mreq group;
+    memset(&group, 0, sizeof(group));
+    group.imr_multiaddr.s_addr = inet_addr(mult_addr.c_str());
+    group.imr_interface.s_addr = inet_addr(ip_addr.c_str());
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0)
+      error("add multicast membership error", WSAGetLastError());
   }
 
   const std::string errorToString(int err) {
@@ -113,7 +113,6 @@ public:
   }
 
   void start() {
-    initialize();
     running = true;
     std::thread thread([&]() { listen(); });
     thread.detach();
@@ -151,7 +150,7 @@ public:
         socklen_t len = sizeof(addr);
         memset(&addr, 0, sizeof(addr));
         char buffer[BUF_SIZE] = { 0 };
-        if (recvfrom(sock, buffer, 1024, 0, (struct sockaddr *) &addr, &len) < 0) {
+        if (recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &addr, &len) < 0) {
           if (WSAGetLastError() == WSAEWOULDBLOCK) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
@@ -169,7 +168,7 @@ public:
     }
 
     try {
-      if (sock > 0) {
+      if (sock > -1) {
         if (closesocket(sock) < 0)
           error("close error", WSAGetLastError());
         sock = -1;
