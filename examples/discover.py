@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from datastructures.capabilities import parse_capabilities_response, Capabilities
-from datastructures.profiles import parse_profiles_response, Profile
+from datastructures.profiles import parse_profiles_response, parse_video_encoder_configuration_options_response, Profile
 
 def create_wsse_header_data(password, offset_seconds):
     nonce_raw = os.urandom(20)
@@ -125,6 +125,48 @@ def get_profiles(url, username, password, time_offset):
     response.raise_for_status()
     return response.content
 
+def get_profile(url, username, password, time_offset, profile_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetProfile><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetProfile></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
+def get_video_encoder_configuration(url, username, password, time_offset, video_encoder_configuration_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetVideoEncoderConfiguration><trt:ConfigurationToken>{video_encoder_configuration_token}</trt:ConfigurationToken></trt:GetVideoEncoderConfiguration></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
+def get_stream_uri(url, username, password, time_offset, profile_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetStreamUri></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
+def get_snapshot_uri(url, username, password, time_offset, profile_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
+def get_video_encoder_configuration_options(url, username, password, time_offset, configuration_token, profile_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{configuration_token}</trt:ConfigurationToken><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
+def get_audio_encoder_configuration_options(url, username, password, time_offset, profile_token):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
 @dataclass
 class Camera:
     xaddr: Optional[str] = None
@@ -134,6 +176,8 @@ class Camera:
     time_offset: Optional[int] = 0
     username: Optional[str] = None
     password: Optional[str] = None
+    capabilities: Optional[Capabilities] = None
+    profiles: list[Profile] = None
 
 if __name__ == "__main__":
     cameras = []
@@ -177,13 +221,26 @@ if __name__ == "__main__":
                         time_offset = get_time_offset(xaddr)
                         setattr(camera, "time_offset", time_offset)
                         capabilities = parse_capabilities_response(get_capabilities(xaddr, "admin", "admin123", time_offset))
-                        device_information = get_device_information(xaddr, "admin", "admin123", time_offset)
+                        setattr(camera, "capabilities", capabilities)
+                        device_information = get_device_information(capabilities.device.xaddr, "admin", "admin123", time_offset)
                         serial_number = get_xml_value(device_information, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
                         setattr(camera, "serial_number", serial_number)
-                        resp = get_profiles(xaddr, "admin", "admin123", time_offset)
-                        profiles = parse_profiles_response(resp)
+                        profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, "admin", "admin123", time_offset))
+                        setattr(camera, "profiles", profiles)
                         for profile in profiles:
-                            print(profile.token, profile.name, profile.video_encoder.resolution.width, profile.video_encoder.resolution.height, profile.video_encoder.rate_control.frame_rate_limit)
+                            stream_information = get_stream_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                            stream_uri = get_xml_value(stream_information, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
+                            setattr(profile, "stream_uri", stream_uri)
+                            snapshot_information = get_snapshot_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                            snapshot_uri = get_xml_value(snapshot_information, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
+                            setattr(profile, "snapshot_uri", snapshot_uri)
+                            video_options = get_video_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.video_encoder.token, profile.token)
+                            video_encoder_cofiguration_options = parse_video_encoder_configuration_options_response(video_options)
+                            setattr(profile, "video_encoder_options", video_encoder_cofiguration_options)
+
+                            if profile.audio_encoder:
+                                audio_options = get_audio_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                                print(audio_options)
 
                     except Exception as ex:
                         logger.error(f"{camera.name} communication error: {ex}")
@@ -197,4 +254,8 @@ if __name__ == "__main__":
 
     print("TEST POINT")
     for camera in cameras:
-        print(camera.name, camera.xaddr)
+        print(camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
+        for profile in camera.profiles:
+            print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
+            #for resolution in profile.video_encoder_options.h264.resolutions_available:
+            #    print(resolution.width, resolution.height)

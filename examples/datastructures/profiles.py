@@ -96,7 +96,46 @@ class VideoEncoderConfiguration:
     rate_control: RateControl = field(default_factory=RateControl)
     multicast: MulticastConfiguration = field(default_factory=MulticastConfiguration)
     session_timeout: Optional[str] = None
+    gov_length: Optional[int] = 1
 
+
+@dataclass
+class IntRange:
+    min: Optional[int] = None
+    max: Optional[int] = None
+
+
+@dataclass
+class JpegOptions:
+    resolutions_available: list[Resolution] = field(default_factory=list)
+    frame_rate_range: IntRange = field(default_factory=IntRange)
+    encoding_interval_range: IntRange = field(default_factory=IntRange)
+
+
+@dataclass
+class Mpeg4Options:
+    resolutions_available: list[Resolution] = field(default_factory=list)
+    gov_length_range: IntRange = field(default_factory=IntRange)
+    frame_rate_range: IntRange = field(default_factory=IntRange)
+    encoding_interval_range: IntRange = field(default_factory=IntRange)
+    profiles_supported: list[str] = field(default_factory=list)
+
+
+@dataclass
+class H264Options:
+    resolutions_available: list[Resolution] = field(default_factory=list)
+    gov_length_range: IntRange = field(default_factory=IntRange)
+    frame_rate_range: IntRange = field(default_factory=IntRange)
+    encoding_interval_range: IntRange = field(default_factory=IntRange)
+    profiles_supported: list[str] = field(default_factory=list)
+
+
+@dataclass
+class VideoEncoderConfigurationOptions:
+    quality_range: IntRange = field(default_factory=IntRange)
+    jpeg: Optional[JpegOptions] = None
+    mpeg4: Optional[Mpeg4Options] = None
+    h264: Optional[H264Options] = None
 
 @dataclass
 class AudioSourceConfiguration:
@@ -159,11 +198,14 @@ class Profile:
 
     video_source: Optional[VideoSourceConfiguration] = None
     video_encoder: Optional[VideoEncoderConfiguration] = None
+    video_encoder_options: Optional[VideoEncoderConfigurationOptions] = None
     audio_source: Optional[AudioSourceConfiguration] = None
     audio_encoder: Optional[AudioEncoderConfiguration] = None
     ptz: Optional[PTZConfiguration] = None
     video_analytics: Optional[VideoAnalyticsConfiguration] = None
     metadata: Optional[MetadataConfiguration] = None
+    stream_uri: Optional[str] = None
+    snapshot_uri: Optional[str] = None
 
 
 @dataclass
@@ -183,7 +225,6 @@ def parse_multicast(elem: Optional[ET.Element]) -> MulticastConfiguration:
         ttl=int_text(elem, "tt:TTL"),
         auto_start=bool_text(elem, "tt:AutoStart"),
     )
-
 
 def parse_profiles_response(xml: str) -> GetProfilesResponse:
     root = ET.fromstring(xml)
@@ -243,6 +284,7 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
                 ),
                 multicast=parse_multicast(video_encoder.find("tt:Multicast", NS)),
                 session_timeout=text(video_encoder, "tt:SessionTimeout"),
+                gov_length=int_text(video_encoder, "tt:H264/tt:GovLength"),
             )
 
         audio_source = p.find("tt:AudioSourceConfiguration", NS)
@@ -318,3 +360,92 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
         response.profiles.append(profile)
 
     return response.profiles
+
+def parse_int_range(elem: Optional[ET.Element]) -> IntRange:
+    if elem is None:
+        return IntRange()
+
+    return IntRange(
+        min=int_text(elem, "tt:Min"),
+        max=int_text(elem, "tt:Max"),
+    )
+
+
+def parse_resolutions(parent: ET.Element) -> list[Resolution]:
+    return [
+        Resolution(
+            width=int_text(r, "tt:Width"),
+            height=int_text(r, "tt:Height"),
+        )
+        for r in parent.findall("tt:ResolutionsAvailable", NS)
+    ]
+
+
+def parse_jpeg_options(elem: Optional[ET.Element]) -> Optional[JpegOptions]:
+    if elem is None:
+        return None
+
+    return JpegOptions(
+        resolutions_available=parse_resolutions(elem),
+        frame_rate_range=parse_int_range(elem.find("tt:FrameRateRange", NS)),
+        encoding_interval_range=parse_int_range(
+            elem.find("tt:EncodingIntervalRange", NS)
+        ),
+    )
+
+
+def parse_mpeg4_options(elem: Optional[ET.Element]) -> Optional[Mpeg4Options]:
+    if elem is None:
+        return None
+
+    return Mpeg4Options(
+        resolutions_available=parse_resolutions(elem),
+        gov_length_range=parse_int_range(elem.find("tt:GovLengthRange", NS)),
+        frame_rate_range=parse_int_range(elem.find("tt:FrameRateRange", NS)),
+        encoding_interval_range=parse_int_range(
+            elem.find("tt:EncodingIntervalRange", NS)
+        ),
+        profiles_supported=[
+            e.text.strip()
+            for e in elem.findall("tt:MPEG4ProfilesSupported", NS)
+            if e.text
+        ],
+    )
+
+
+def parse_h264_options(elem: Optional[ET.Element]) -> Optional[H264Options]:
+    if elem is None:
+        return None
+
+    return H264Options(
+        resolutions_available=parse_resolutions(elem),
+        gov_length_range=parse_int_range(elem.find("tt:GovLengthRange", NS)),
+        frame_rate_range=parse_int_range(elem.find("tt:FrameRateRange", NS)),
+        encoding_interval_range=parse_int_range(
+            elem.find("tt:EncodingIntervalRange", NS)
+        ),
+        profiles_supported=[
+            e.text.strip()
+            for e in elem.findall("tt:H264ProfilesSupported", NS)
+            if e.text
+        ],
+    )
+
+def parse_video_encoder_configuration_options_response(xml: str) -> VideoEncoderConfigurationOptions:
+    root = ET.fromstring(xml)
+
+    options = root.find(
+        ".//trt:GetVideoEncoderConfigurationOptionsResponse/trt:Options",
+        NS,
+    )
+    if options is None:
+        raise ValueError(
+            "Could not find trt:GetVideoEncoderConfigurationOptionsResponse/trt:Options"
+        )
+
+    return VideoEncoderConfigurationOptions(
+        quality_range=parse_int_range(options.find("tt:QualityRange", NS)),
+        jpeg=parse_jpeg_options(options.find("tt:JPEG", NS)),
+        mpeg4=parse_mpeg4_options(options.find("tt:MPEG4", NS)),
+        h264=parse_h264_options(options.find("tt:H264", NS)),
+    )
