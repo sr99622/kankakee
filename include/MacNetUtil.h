@@ -227,7 +227,8 @@ public:
                 results.insert(std::pair("BroadcastAddress", getStringFromRef((CFStringRef)CFArrayGetValueAtIndex(broadcastAddresses, 0))));
         }
         catch (const std::exception& e) {
-            std::cout << "gateway error: " << e.what() << std::endl;
+            if (std::string(e.what()) != "SCDynamicStoreCopyValue returned nullptr")
+                std::cout << "ipV4: " << e.what() << std::endl;
         }
 
         if (store) CFRelease(store);
@@ -345,7 +346,8 @@ public:
             result = true;
         }
         catch (const std::exception& e) {
-            std::cout << "dhcpEnabled error: " << e.what() << std::endl;
+            if ((std::string(e.what()) != "dhcp returned nullptr") && (std::string(e.what()) != "empty service id"))
+                std::cout << "dhcpEnabled error: " << e.what() << std::endl;
         }
 
         if (dhcpInfo) CFRelease(dhcpInfo);
@@ -408,7 +410,8 @@ public:
             }
         }
         catch (const std::exception& e) {
-            std::cout << "DNSForService error: " << e.what() << std::endl;
+            if ((std::string(e.what()) != "dnsInfo returned nullptr") && (std::string(e.what()) != "service id is empty"))
+                std::cout << "DNSForService error: " << e.what() << std::endl;
         }
 
         if (dnsInfo) CFRelease(dnsInfo);
