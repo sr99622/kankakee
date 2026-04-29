@@ -13,21 +13,13 @@ import ipaddress
 from dataclasses import dataclass, field
 from typing import Optional
 from utils.xml import get_xml_value
+from utils.soap import onvif_post
 
 from datastructures.capabilities import parse_capabilities_response, Capabilities
 from datastructures.profiles import Profile, parse_profiles_response, \
         parse_video_encoder_configuration_options_response, \
         parse_audio_encoder_configuration_options_response
 from datastructures.network import NetworkInterface, parse_network_interfaces_response
-
-def create_wsse_header_data(password, offset_seconds):
-    nonce_raw = os.urandom(20)
-    nonce_b64 = base64.b64encode(nonce_raw).decode("ascii")
-    created_dt = datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
-    created = created_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-    digest_raw = hashlib.sha1(nonce_raw + created.encode("utf-8") + password.encode("utf-8")).digest()
-    password_digest = base64.b64encode(digest_raw).decode("ascii")
-    return password_digest, nonce_b64, created
 
 def check_ip_in_subnet(ip_to_check, network_ip, netmask):
     try:
@@ -74,74 +66,40 @@ def get_time_offset(url):
     return int((camera_utc - computer_utc).total_seconds())
 
 def get_capabilities(url, username, password, time_offset):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = """<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
 
 def get_device_information(url, username, password, time_offset):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><tds:GetDeviceInformation/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = """<tds:GetDeviceInformation/>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
 
 def get_profiles(url, username, password, time_offset):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetProfiles/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
-
-def get_profile(url, username, password, time_offset, profile_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetProfile><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetProfile></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = "<trt:GetProfiles/>"
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
 def get_video_encoder_configuration(url, username, password, time_offset, video_encoder_configuration_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetVideoEncoderConfiguration><trt:ConfigurationToken>{video_encoder_configuration_token}</trt:ConfigurationToken></trt:GetVideoEncoderConfiguration></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
-
-def get_stream_uri(url, username, password, time_offset, profile_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetStreamUri></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
-
-def get_snapshot_uri(url, username, password, time_offset, profile_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:tt="http://www.onvif.org/ver10/schema" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = f"""<trt:GetVideoEncoderConfiguration><trt:ConfigurationToken>{video_encoder_configuration_token}</trt:ConfigurationToken></trt:GetVideoEncoderConfiguration>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
 def get_video_encoder_configuration_options(url, username, password, time_offset, configuration_token, profile_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{configuration_token}</trt:ConfigurationToken><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = f"""<trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{configuration_token}</trt:ConfigurationToken><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
 def get_audio_encoder_configuration_options(url, username, password, time_offset, profile_token):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = f"""<trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
 def get_network_interfaces(url, username, password, time_offset):
-    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
-    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><tds:GetNetworkInterfaces/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
-    return response.content
+    body = "<tds:GetNetworkInterfaces/>"
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
+
+def get_stream_uri(url, username, password, time_offset, profile_token):
+    body = f"""<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetStreamUri>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media", include_tt=True)
+
+def get_snapshot_uri(url, username, password, time_offset, profile_token):
+    body = f"""<trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
 @dataclass
 class Camera:
