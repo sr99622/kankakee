@@ -1,4 +1,4 @@
-import kankakee
+#import kankakee
 from loguru import logger
 import traceback
 import uuid
@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from utils.xml import get_xml_value
 from utils.soap import onvif_post
+from kankakee import Adapter, NetUtil, Broadcaster
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, parse_profiles_response, \
@@ -140,20 +141,87 @@ class Camera:
     dns: Optional[DNSInformation] = None
     ntp: Optional[NTPInformation] = None
 
+def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
+    output = None
+
+    try:
+        soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+        broadcaster = Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
+        broadcaster.errorCallback = logger.error
+        broadcaster.send(soap)
+        output = broadcaster.recv()
+    except Exception as ex:
+        logger.error(f'discover broadcast error: {ex}')
+        logger.debug(traceback.format_exc())
+
+    return output
+
+def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
+    camera = Camera()
+    setattr(camera, "name", name)
+    setattr(camera, "xaddr", xaddr)
+    setattr(camera, "username", "admin")
+    setattr(camera, "password", "admin123")
+
+    time_offset = get_time_offset(xaddr)
+    setattr(camera, "time_offset", time_offset)
+    capabilities = parse_capabilities_response(get_capabilities(xaddr, camera.username, camera.password, camera.time_offset))
+    setattr(camera, "capabilities", capabilities)
+    device_information_xml = get_device_information(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+    serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
+    setattr(camera, "serial_number", serial_number)
+    network_interfaces_xml = get_network_interfaces(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+    network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
+    setattr(camera, "network_interfaces", network_interfaces)
+    network_gateway_xml = get_network_default_gateway(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+    network_gateway = get_xml_value(network_gateway_xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address")
+    setattr(camera, "network_gateway", network_gateway)
+    dns_xml = get_dns(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+    dns = parse_dns_response(dns_xml)
+    setattr(camera, "dns", dns)
+    ntp_xml = get_ntp(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+    ntp = parse_ntp_response(ntp_xml)
+    setattr(camera, "ntp", ntp)
+
+
+    profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset))
+    setattr(camera, "profiles", profiles)
+    for profile in profiles:
+        stream_uri_xml = get_stream_uri(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token)
+        stream_uri = get_xml_value(stream_uri_xml, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
+        setattr(profile, "stream_uri", stream_uri)
+        snapshot_uri_xml = get_snapshot_uri(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token)
+        snapshot_uri = get_xml_value(snapshot_uri_xml, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
+        setattr(profile, "snapshot_uri", snapshot_uri)
+        video_options_xml = get_video_encoder_configuration_options(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.video_encoder.token, profile.token)
+        video_encoder_options = parse_video_encoder_configuration_options_response(video_options_xml)
+        setattr(profile, "video_encoder_options", video_encoder_options)
+        if profile.audio_encoder:
+            audio_options_xml = get_audio_encoder_configuration_options(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token)
+            audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
+            setattr(profile, "audio_encoder_options", audio_options)
+
+
+        if capabilities.imaging:
+            imaging_xml = get_imaging_settings(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token)
+            imaging = parse_imaging_settings_response(imaging_xml)
+            setattr(profile, "imaging_settings", imaging)
+            options_xml = get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token)
+            imaging_options = parse_imaging_options_response(options_xml)
+            setattr(profile, "imaging_options", imaging_options)
+    return camera
+ 
 if __name__ == "__main__":
     cameras = []
     try:
         msg_id = uuid.uuid4()
-        soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-        adapters = kankakee.NetUtil().getAllAdapters()
+        adapters = NetUtil().getAllAdapters()
         for adapter in adapters:
             if not adapter.up:
                 continue
 
-            broadcaster = kankakee.Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
-            broadcaster.errorCallback = logger.error
-            broadcaster.send(soap)
-            results = broadcaster.recv()
+            results = discover(adapter, msg_id)
+
             for result in results:
                 relates_to = get_xml_value(result, "//s:Header//a:RelatesTo")
                 if not str(msg_id) in get_xml_value(result, "//s:Header//a:RelatesTo"):
@@ -174,62 +242,7 @@ if __name__ == "__main__":
                     if not check_ip_in_subnet(host, adapter.ip_address, adapter.netmask):
                         continue
 
-                    camera = Camera()
-                    setattr(camera, "name", name)
-                    setattr(camera, "xaddr", xaddr)
-
-                    try:
-                        time_offset = get_time_offset(xaddr)
-                        setattr(camera, "time_offset", time_offset)
-                        capabilities = parse_capabilities_response(get_capabilities(xaddr, "admin", "admin123", time_offset))
-                        setattr(camera, "capabilities", capabilities)
-                        device_information_xml = get_device_information(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
-                        setattr(camera, "serial_number", serial_number)
-                        network_interfaces_xml = get_network_interfaces(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
-                        setattr(camera, "network_interfaces", network_interfaces)
-                        network_gateway_xml = get_network_default_gateway(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        network_gateway = get_xml_value(network_gateway_xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address")
-                        setattr(camera, "network_gateway", network_gateway)
-                        dns_xml = get_dns(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        dns = parse_dns_response(dns_xml)
-                        setattr(camera, "dns", dns)
-                        ntp_xml = get_ntp(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        ntp = parse_ntp_response(ntp_xml)
-                        setattr(camera, "ntp", ntp)
-
-
-                        profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, "admin", "admin123", time_offset))
-                        setattr(camera, "profiles", profiles)
-                        for profile in profiles:
-                            stream_uri_xml = get_stream_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                            stream_uri = get_xml_value(stream_uri_xml, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
-                            setattr(profile, "stream_uri", stream_uri)
-                            snapshot_uri_xml = get_snapshot_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                            snapshot_uri = get_xml_value(snapshot_uri_xml, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
-                            setattr(profile, "snapshot_uri", snapshot_uri)
-                            video_options_xml = get_video_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.video_encoder.token, profile.token)
-                            video_encoder_options = parse_video_encoder_configuration_options_response(video_options_xml)
-                            setattr(profile, "video_encoder_options", video_encoder_options)
-                            if profile.audio_encoder:
-                                audio_options_xml = get_audio_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                                audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
-                                setattr(profile, "audio_encoder_options", audio_options)
-
-
-                            if capabilities.imaging:
-                                imaging_xml = get_imaging_settings(capabilities.imaging.xaddr, "admin", "admin123", time_offset, profile.video_source.source_token)
-                                imaging = parse_imaging_settings_response(imaging_xml)
-                                setattr(profile, "imaging_settings", imaging)
-                                options_xml = get_imaging_options(capabilities.imaging.xaddr, "admin", "admin123", time_offset, profile.video_source.source_token)
-                                imaging_options = parse_imaging_options_response(options_xml)
-                                setattr(profile, "imaging_options", imaging_options)
-
-                    except Exception as ex:
-                        logger.error(f"{camera.name} communication error: {ex}")
-                        logger.debug(traceback.format_exc())
-
+                    camera = get_camera("admin", "admin123", xaddr, name)
                     cameras.append(camera)
 
     except Exception as ex:
