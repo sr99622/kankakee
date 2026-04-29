@@ -3,31 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 import xml.etree.ElementTree as ET
-
-
-NS = {
-    "s": "http://www.w3.org/2003/05/soap-envelope",
-    "tds": "http://www.onvif.org/ver10/device/wsdl",
-    "tt": "http://www.onvif.org/ver10/schema",
-}
-
-
-def text(elem: ET.Element, path: str) -> Optional[str]:
-    found = elem.find(path, NS)
-    return found.text.strip() if found is not None and found.text else None
-
-
-def bool_text(elem: ET.Element, path: str) -> Optional[bool]:
-    value = text(elem, path)
-    if value is None:
-        return None
-    return value.lower() == "true"
-
-
-def int_text(elem: ET.Element, path: str) -> Optional[int]:
-    value = text(elem, path)
-    return int(value) if value is not None else None
-
+from utils.xml import text, int_text, bool_text, attr, NS
 
 @dataclass
 class OnvifVersion:
@@ -37,13 +13,11 @@ class OnvifVersion:
     def __str__(self) -> str:
         return f"{self.major}.{self.minor}"
 
-
 @dataclass
 class AnalyticsCapabilities:
     xaddr: Optional[str] = None
     rule_support: Optional[bool] = None
     analytics_module_support: Optional[bool] = None
-
 
 @dataclass
 class NetworkCapabilities:
@@ -52,7 +26,6 @@ class NetworkCapabilities:
     ip_version6: Optional[bool] = None
     dyn_dns: Optional[bool] = None
     dot11_configuration: Optional[bool] = None
-
 
 @dataclass
 class SystemCapabilities:
@@ -69,13 +42,11 @@ class SystemCapabilities:
     http_system_logging: Optional[bool] = None
     http_support_information: Optional[bool] = None
 
-
 @dataclass
 class IOCapabilities:
     input_connectors: Optional[int] = None
     relay_outputs: Optional[int] = None
     auxiliary: Optional[bool] = None
-
 
 @dataclass
 class SecurityCapabilities:
@@ -92,7 +63,6 @@ class SecurityCapabilities:
     supported_eap_method: Optional[int] = None
     remote_user_handling: Optional[bool] = None
 
-
 @dataclass
 class DeviceCapabilities:
     xaddr: Optional[str] = None
@@ -101,7 +71,6 @@ class DeviceCapabilities:
     io: IOCapabilities = field(default_factory=IOCapabilities)
     security: SecurityCapabilities = field(default_factory=SecurityCapabilities)
 
-
 @dataclass
 class EventsCapabilities:
     xaddr: Optional[str] = None
@@ -109,11 +78,9 @@ class EventsCapabilities:
     ws_pull_point_support: Optional[bool] = None
     ws_pausable_subscription_manager_interface_support: Optional[bool] = None
 
-
 @dataclass
 class ImagingCapabilities:
     xaddr: Optional[str] = None
-
 
 @dataclass
 class StreamingCapabilities:
@@ -121,18 +88,15 @@ class StreamingCapabilities:
     rtp_tcp: Optional[bool] = None
     rtp_rtsp_tcp: Optional[bool] = None
 
-
 @dataclass
 class MediaCapabilities:
     xaddr: Optional[str] = None
     streaming: StreamingCapabilities = field(default_factory=StreamingCapabilities)
     maximum_number_of_profiles: Optional[int] = None
 
-
 @dataclass
 class PTZCapabilities:
     xaddr: Optional[str] = None
-
 
 @dataclass
 class DeviceIOCapabilities:
@@ -143,7 +107,6 @@ class DeviceIOCapabilities:
     audio_outputs: Optional[int] = None
     relay_outputs: Optional[int] = None
 
-
 @dataclass
 class TelexCapabilities:
     xaddr: Optional[str] = None
@@ -153,7 +116,6 @@ class TelexCapabilities:
     ptz_aux_switch_support: Optional[bool] = None
     motion_detector_support: Optional[bool] = None
     tamper_detector_support: Optional[bool] = None
-
 
 @dataclass
 class Capabilities:

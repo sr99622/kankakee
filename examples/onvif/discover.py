@@ -3,7 +3,6 @@ from loguru import logger
 import traceback
 import uuid
 import requests
-from lxml import etree
 from datetime import datetime, timezone, timedelta
 import re
 import base64
@@ -13,11 +12,13 @@ from urllib.parse import unquote_plus, urlparse
 import ipaddress
 from dataclasses import dataclass, field
 from typing import Optional
+from utils.xml import get_xml_value
 
 from datastructures.capabilities import parse_capabilities_response, Capabilities
 from datastructures.profiles import Profile, parse_profiles_response, \
         parse_video_encoder_configuration_options_response, \
         parse_audio_encoder_configuration_options_response
+from datastructures.network import NetworkInterface, parse_network_interfaces_response
 
 def create_wsse_header_data(password, offset_seconds):
     nonce_raw = os.urandom(20)
@@ -35,40 +36,6 @@ def check_ip_in_subnet(ip_to_check, network_ip, netmask):
         return address in network
     except ValueError:
         return False
-
-def get_xml_value(xml_data, xpath):
-    NSMAP = {
-        "s": "http://www.w3.org/2003/05/soap-envelope",
-        "trt": "http://www.onvif.org/ver10/media/wsdl",
-        "tt": "http://www.onvif.org/ver10/schema",
-        "tds": "http://www.onvif.org/ver10/device/wsdl",
-        "timg": "http://www.onvif.org/ver20/imaging/wsdl",
-        "wsa5": "http://www.w3.org/2005/08/addressing",
-        "wsnt": "http://docs.oasis-open.org/wsn/b-2",
-        "d": "http://schemas.xmlsoap.org/ws/2005/04/discovery",
-        "ter": "http://www.onvif.org/ver10/error",
-        "a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
-    }
-    try:
-        if isinstance(xml_data, str):
-            xml_data = xml_data.encode("utf-8")
-        doc = etree.fromstring(xml_data)
-    except (etree.XMLSyntaxError, ValueError):
-        return ""
-
-    try:
-        result = doc.xpath(xpath, namespaces=NSMAP)
-    except etree.XPathError:
-        return ""
-
-    if not result:
-        return ""
-
-    node = result[0]
-    if isinstance(node, etree._Element):
-        return "".join(node.itertext()).strip()
-
-    return str(node).strip()
 
 def get_camera_name(xml_data):
     scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
@@ -169,6 +136,13 @@ def get_audio_encoder_configuration_options(url, username, password, time_offset
     response.raise_for_status()
     return response.content
 
+def get_network_interfaces(url, username, password, time_offset):
+    password_digest, nonce, created = create_wsse_header_data(password, time_offset)
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"><SOAP-ENV:Header><wsse:Security SOAP-ENV:mustUnderstand="1"><wsse:UsernameToken><wsse:Username>{username}</wsse:Username><wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password><wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce}</wsse:Nonce><wsu:Created>{created}</wsu:Created></wsse:UsernameToken></wsse:Security></SOAP-ENV:Header><SOAP-ENV:Body><tds:GetNetworkInterfaces/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=5)
+    response.raise_for_status()
+    return response.content
+
 @dataclass
 class Camera:
     xaddr: Optional[str] = None
@@ -180,6 +154,7 @@ class Camera:
     password: Optional[str] = None
     capabilities: Optional[Capabilities] = None
     profiles: list[Profile] = None
+    network_interfaces: list[NetworkInterface] = None
 
 if __name__ == "__main__":
     cameras = []
@@ -227,6 +202,9 @@ if __name__ == "__main__":
                         device_information_xml = get_device_information(capabilities.device.xaddr, "admin", "admin123", time_offset)
                         serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
                         setattr(camera, "serial_number", serial_number)
+                        network_interfaces_xml = get_network_interfaces(capabilities.device.xaddr, "admin", "admin123", time_offset)
+                        network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
+                        setattr(camera, "network_interfaces", network_interfaces)
                         profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, "admin", "admin123", time_offset))
                         setattr(camera, "profiles", profiles)
                         for profile in profiles:
@@ -254,10 +232,9 @@ if __name__ == "__main__":
         logger.error(f"discovery error: {ex}")
         logger.debug(traceback.format_exc())
 
-    print("TEST POINT")
     for camera in cameras:
         print(camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
         for profile in camera.profiles:
             print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
-            #for resolution in profile.video_encoder_options.h264.resolutions_available:
-            #    print(resolution.width, resolution.height)
+            print(profile.stream_uri)
+            print(profile.snapshot_uri)

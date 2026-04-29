@@ -1,2 +1,0 @@
-from datastructures.capabilities import Capabilities
-from datastructures.profiles import Profile
