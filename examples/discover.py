@@ -15,7 +15,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from datastructures.capabilities import parse_capabilities_response, Capabilities
-from datastructures.profiles import parse_profiles_response, parse_video_encoder_configuration_options_response, Profile
+from datastructures.profiles import Profile, parse_profiles_response, \
+        parse_video_encoder_configuration_options_response, \
+        parse_audio_encoder_configuration_options_response
 
 def create_wsse_header_data(password, offset_seconds):
     nonce_raw = os.urandom(20)
@@ -222,25 +224,25 @@ if __name__ == "__main__":
                         setattr(camera, "time_offset", time_offset)
                         capabilities = parse_capabilities_response(get_capabilities(xaddr, "admin", "admin123", time_offset))
                         setattr(camera, "capabilities", capabilities)
-                        device_information = get_device_information(capabilities.device.xaddr, "admin", "admin123", time_offset)
-                        serial_number = get_xml_value(device_information, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
+                        device_information_xml = get_device_information(capabilities.device.xaddr, "admin", "admin123", time_offset)
+                        serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
                         setattr(camera, "serial_number", serial_number)
                         profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, "admin", "admin123", time_offset))
                         setattr(camera, "profiles", profiles)
                         for profile in profiles:
-                            stream_information = get_stream_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                            stream_uri = get_xml_value(stream_information, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
+                            stream_uri_xml = get_stream_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                            stream_uri = get_xml_value(stream_uri_xml, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
                             setattr(profile, "stream_uri", stream_uri)
-                            snapshot_information = get_snapshot_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                            snapshot_uri = get_xml_value(snapshot_information, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
+                            snapshot_uri_xml = get_snapshot_uri(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                            snapshot_uri = get_xml_value(snapshot_uri_xml, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
                             setattr(profile, "snapshot_uri", snapshot_uri)
-                            video_options = get_video_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.video_encoder.token, profile.token)
-                            video_encoder_cofiguration_options = parse_video_encoder_configuration_options_response(video_options)
-                            setattr(profile, "video_encoder_options", video_encoder_cofiguration_options)
-
+                            video_options_xml = get_video_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.video_encoder.token, profile.token)
+                            video_encoder_options = parse_video_encoder_configuration_options_response(video_options_xml)
+                            setattr(profile, "video_encoder_options", video_encoder_options)
                             if profile.audio_encoder:
-                                audio_options = get_audio_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
-                                print(audio_options)
+                                audio_options_xml = get_audio_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
+                                audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
+                                setattr(profile, "audio_encoder_options", audio_options)
 
                     except Exception as ex:
                         logger.error(f"{camera.name} communication error: {ex}")

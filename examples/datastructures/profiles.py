@@ -4,18 +4,15 @@ from dataclasses import dataclass, field
 from typing import Optional
 import xml.etree.ElementTree as ET
 
-
 NS = {
     "s": "http://www.w3.org/2003/05/soap-envelope",
     "trt": "http://www.onvif.org/ver10/media/wsdl",
     "tt": "http://www.onvif.org/ver10/schema",
 }
 
-
 def text(elem: ET.Element, path: str) -> Optional[str]:
     found = elem.find(path, NS)
     return found.text.strip() if found is not None and found.text else None
-
 
 def bool_text(elem: ET.Element, path: str) -> Optional[bool]:
     value = text(elem, path)
@@ -23,20 +20,16 @@ def bool_text(elem: ET.Element, path: str) -> Optional[bool]:
         return None
     return value.lower() == "true"
 
-
 def int_text(elem: ET.Element, path: str) -> Optional[int]:
     value = text(elem, path)
     return int(value) if value is not None else None
-
 
 def float_text(elem: ET.Element, path: str) -> Optional[float]:
     value = text(elem, path)
     return float(value) if value is not None else None
 
-
 def attr(elem: ET.Element, name: str) -> Optional[str]:
     return elem.attrib.get(name)
-
 
 def bool_attr(elem: ET.Element, name: str) -> Optional[bool]:
     value = attr(elem, name)
@@ -44,14 +37,12 @@ def bool_attr(elem: ET.Element, name: str) -> Optional[bool]:
         return None
     return value.lower() == "true"
 
-
 @dataclass
 class Bounds:
     x: Optional[int] = None
     y: Optional[int] = None
     width: Optional[int] = None
     height: Optional[int] = None
-
 
 @dataclass
 class VideoSourceConfiguration:
@@ -61,19 +52,16 @@ class VideoSourceConfiguration:
     source_token: Optional[str] = None
     bounds: Bounds = field(default_factory=Bounds)
 
-
 @dataclass
 class Resolution:
     width: Optional[int] = None
     height: Optional[int] = None
-
 
 @dataclass
 class RateControl:
     frame_rate_limit: Optional[int] = None
     encoding_interval: Optional[int] = None
     bitrate_limit: Optional[int] = None
-
 
 @dataclass
 class MulticastConfiguration:
@@ -83,7 +71,6 @@ class MulticastConfiguration:
     port: Optional[int] = None
     ttl: Optional[int] = None
     auto_start: Optional[bool] = None
-
 
 @dataclass
 class VideoEncoderConfiguration:
@@ -98,19 +85,16 @@ class VideoEncoderConfiguration:
     session_timeout: Optional[str] = None
     gov_length: Optional[int] = 1
 
-
 @dataclass
 class IntRange:
     min: Optional[int] = None
     max: Optional[int] = None
-
 
 @dataclass
 class JpegOptions:
     resolutions_available: list[Resolution] = field(default_factory=list)
     frame_rate_range: IntRange = field(default_factory=IntRange)
     encoding_interval_range: IntRange = field(default_factory=IntRange)
-
 
 @dataclass
 class Mpeg4Options:
@@ -120,7 +104,6 @@ class Mpeg4Options:
     encoding_interval_range: IntRange = field(default_factory=IntRange)
     profiles_supported: list[str] = field(default_factory=list)
 
-
 @dataclass
 class H264Options:
     resolutions_available: list[Resolution] = field(default_factory=list)
@@ -128,7 +111,6 @@ class H264Options:
     frame_rate_range: IntRange = field(default_factory=IntRange)
     encoding_interval_range: IntRange = field(default_factory=IntRange)
     profiles_supported: list[str] = field(default_factory=list)
-
 
 @dataclass
 class VideoEncoderConfigurationOptions:
@@ -138,12 +120,21 @@ class VideoEncoderConfigurationOptions:
     h264: Optional[H264Options] = None
 
 @dataclass
+class AudioEncoderConfigurationOption:
+    encoding: Optional[str] = None
+    bitrate_list: list[int] = field(default_factory=list)
+    sample_rate_list: list[int] = field(default_factory=list)
+
+@dataclass
+class AudioEncoderConfigurationOptions:
+    options: list[AudioEncoderConfigurationOption] = field(default_factory=list)    
+
+@dataclass
 class AudioSourceConfiguration:
     token: Optional[str] = None
     name: Optional[str] = None
     use_count: Optional[int] = None
     source_token: Optional[str] = None
-
 
 @dataclass
 class AudioEncoderConfiguration:
@@ -155,7 +146,6 @@ class AudioEncoderConfiguration:
     sample_rate: Optional[int] = None
     multicast: MulticastConfiguration = field(default_factory=MulticastConfiguration)
     session_timeout: Optional[str] = None
-
 
 @dataclass
 class PTZConfiguration:
@@ -171,13 +161,11 @@ class PTZConfiguration:
     default_continuous_zoom_velocity_space: Optional[str] = None
     default_ptz_timeout: Optional[str] = None
 
-
 @dataclass
 class VideoAnalyticsConfiguration:
     token: Optional[str] = None
     name: Optional[str] = None
     use_count: Optional[int] = None
-
 
 @dataclass
 class MetadataConfiguration:
@@ -188,7 +176,6 @@ class MetadataConfiguration:
     events: Optional[bool] = None
     multicast: MulticastConfiguration = field(default_factory=MulticastConfiguration)
     session_timeout: Optional[str] = None
-
 
 @dataclass
 class Profile:
@@ -201,17 +188,16 @@ class Profile:
     video_encoder_options: Optional[VideoEncoderConfigurationOptions] = None
     audio_source: Optional[AudioSourceConfiguration] = None
     audio_encoder: Optional[AudioEncoderConfiguration] = None
+    audio_encoder_options: Optional[AudioEncoderConfigurationOptions] = None
     ptz: Optional[PTZConfiguration] = None
     video_analytics: Optional[VideoAnalyticsConfiguration] = None
     metadata: Optional[MetadataConfiguration] = None
     stream_uri: Optional[str] = None
     snapshot_uri: Optional[str] = None
 
-
 @dataclass
 class GetProfilesResponse:
     profiles: list[Profile] = field(default_factory=list)
-
 
 def parse_multicast(elem: Optional[ET.Element]) -> MulticastConfiguration:
     if elem is None:
@@ -370,7 +356,6 @@ def parse_int_range(elem: Optional[ET.Element]) -> IntRange:
         max=int_text(elem, "tt:Max"),
     )
 
-
 def parse_resolutions(parent: ET.Element) -> list[Resolution]:
     return [
         Resolution(
@@ -379,7 +364,6 @@ def parse_resolutions(parent: ET.Element) -> list[Resolution]:
         )
         for r in parent.findall("tt:ResolutionsAvailable", NS)
     ]
-
 
 def parse_jpeg_options(elem: Optional[ET.Element]) -> Optional[JpegOptions]:
     if elem is None:
@@ -392,7 +376,6 @@ def parse_jpeg_options(elem: Optional[ET.Element]) -> Optional[JpegOptions]:
             elem.find("tt:EncodingIntervalRange", NS)
         ),
     )
-
 
 def parse_mpeg4_options(elem: Optional[ET.Element]) -> Optional[Mpeg4Options]:
     if elem is None:
@@ -411,7 +394,6 @@ def parse_mpeg4_options(elem: Optional[ET.Element]) -> Optional[Mpeg4Options]:
             if e.text
         ],
     )
-
 
 def parse_h264_options(elem: Optional[ET.Element]) -> Optional[H264Options]:
     if elem is None:
@@ -449,3 +431,35 @@ def parse_video_encoder_configuration_options_response(xml: str) -> VideoEncoder
         mpeg4=parse_mpeg4_options(options.find("tt:MPEG4", NS)),
         h264=parse_h264_options(options.find("tt:H264", NS)),
     )
+
+def parse_audio_encoder_configuration_option(elem: ET.Element) -> AudioEncoderConfigurationOption:
+    return AudioEncoderConfigurationOption(
+        encoding=text(elem, "tt:Encoding"),
+        bitrate_list=[
+            int(e.text.strip())
+            for e in elem.findall("tt:BitrateList/tt:Items", NS)
+            if e.text
+        ],
+        sample_rate_list=[
+            int(e.text.strip())
+            for e in elem.findall("tt:SampleRateList/tt:Items", NS)
+            if e.text
+        ],
+    )
+
+def parse_audio_encoder_configuration_options_response(xml: str) -> list[AudioEncoderConfigurationOption]:
+    root = ET.fromstring(xml)
+
+    options_elem = root.find(
+        ".//trt:GetAudioEncoderConfigurationOptionsResponse/trt:Options",
+        NS,
+    )
+    if options_elem is None:
+        raise ValueError(
+            "Could not find trt:GetAudioEncoderConfigurationOptionsResponse/trt:Options"
+        )
+
+    return [
+        parse_audio_encoder_configuration_option(option)
+        for option in options_elem.findall("tt:Options", NS)
+    ]
