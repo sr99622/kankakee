@@ -14,6 +14,7 @@ WSU_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-uti
 DEVICE_NS = "http://www.onvif.org/ver10/device/wsdl"
 MEDIA_NS = "http://www.onvif.org/ver10/media/wsdl"
 SCHEMA_NS = "http://www.onvif.org/ver10/schema"
+IMAGING_NS = "http://www.onvif.org/ver20/imaging/wsdl"
 
 
 def create_wsse_header_data(password: str, offset_seconds: int) -> tuple[str, str, str]:
@@ -55,6 +56,8 @@ def build_soap_envelope(
         service_ns = f'xmlns:tds="{DEVICE_NS}"'
     elif service == "media":
         service_ns = f'xmlns:trt="{MEDIA_NS}"'
+    elif service == "imaging":
+        service_ns = f'xmlns:timg="{IMAGING_NS}"'
     else:
         raise ValueError(f"Unknown ONVIF service: {service}")
 

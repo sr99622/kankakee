@@ -15,11 +15,14 @@ from typing import Optional
 from utils.xml import get_xml_value
 from utils.soap import onvif_post
 
-from datastructures.capabilities import parse_capabilities_response, Capabilities
+from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, parse_profiles_response, \
         parse_video_encoder_configuration_options_response, \
         parse_audio_encoder_configuration_options_response
-from datastructures.network import NetworkInterface, parse_network_interfaces_response
+from datastructures.network import NetworkInterface, DNSInformation, NTPInformation, \
+        parse_network_interfaces_response, parse_dns_response, parse_ntp_response
+from datastructures.imaging import ImagingSettings, ImagingOptions, \
+        parse_imaging_settings_response, parse_imaging_options_response
 
 def check_ip_in_subnet(ip_to_check, network_ip, netmask):
     try:
@@ -101,6 +104,26 @@ def get_snapshot_uri(url, username, password, time_offset, profile_token):
     body = f"""<trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri>"""
     return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="media")
 
+def get_network_default_gateway(url, username, password, time_offset):
+    body = f"""<tds:GetNetworkDefaultGateway/>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
+
+def get_dns(url, username, password, time_offset):
+    body = f"""<tds:GetDNS/>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
+
+def get_ntp(url, username, password, time_offset):
+    body = f"""<tds:GetNTP/>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="device")
+
+def get_imaging_settings(url, username, password, time_offset, video_source_token):
+    body = f"""<timg:GetImagingSettings><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetImagingSettings>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="imaging")
+
+def get_imaging_options(url, username, password, time_offset, video_source_token):
+    body = f"""<timg:GetOptions><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetOptions>"""
+    return onvif_post(url=url, body=body, username=username, password=password, time_offset=time_offset, service="imaging")
+
 @dataclass
 class Camera:
     xaddr: Optional[str] = None
@@ -113,6 +136,9 @@ class Camera:
     capabilities: Optional[Capabilities] = None
     profiles: list[Profile] = None
     network_interfaces: list[NetworkInterface] = None
+    network_gateway: Optional[str] = None
+    dns: Optional[DNSInformation] = None
+    ntp: Optional[NTPInformation] = None
 
 if __name__ == "__main__":
     cameras = []
@@ -163,6 +189,17 @@ if __name__ == "__main__":
                         network_interfaces_xml = get_network_interfaces(capabilities.device.xaddr, "admin", "admin123", time_offset)
                         network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
                         setattr(camera, "network_interfaces", network_interfaces)
+                        network_gateway_xml = get_network_default_gateway(capabilities.device.xaddr, "admin", "admin123", time_offset)
+                        network_gateway = get_xml_value(network_gateway_xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address")
+                        setattr(camera, "network_gateway", network_gateway)
+                        dns_xml = get_dns(capabilities.device.xaddr, "admin", "admin123", time_offset)
+                        dns = parse_dns_response(dns_xml)
+                        setattr(camera, "dns", dns)
+                        ntp_xml = get_ntp(capabilities.device.xaddr, "admin", "admin123", time_offset)
+                        ntp = parse_ntp_response(ntp_xml)
+                        setattr(camera, "ntp", ntp)
+
+
                         profiles = parse_profiles_response(get_profiles(capabilities.media.xaddr, "admin", "admin123", time_offset))
                         setattr(camera, "profiles", profiles)
                         for profile in profiles:
@@ -179,6 +216,15 @@ if __name__ == "__main__":
                                 audio_options_xml = get_audio_encoder_configuration_options(capabilities.media.xaddr, "admin", "admin123", time_offset, profile.token)
                                 audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
                                 setattr(profile, "audio_encoder_options", audio_options)
+
+
+                            if capabilities.imaging:
+                                imaging_xml = get_imaging_settings(capabilities.imaging.xaddr, "admin", "admin123", time_offset, profile.video_source.source_token)
+                                imaging = parse_imaging_settings_response(imaging_xml)
+                                setattr(profile, "imaging_settings", imaging)
+                                options_xml = get_imaging_options(capabilities.imaging.xaddr, "admin", "admin123", time_offset, profile.video_source.source_token)
+                                imaging_options = parse_imaging_options_response(options_xml)
+                                setattr(profile, "imaging_options", imaging_options)
 
                     except Exception as ex:
                         logger.error(f"{camera.name} communication error: {ex}")

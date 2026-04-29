@@ -162,6 +162,8 @@ class Profile:
     metadata: Optional[MetadataConfiguration] = None
     stream_uri: Optional[str] = None
     snapshot_uri: Optional[str] = None
+    imaging_settings: Optional[ImagingSettings] = None
+    imaging_options: Optional[ImagingOptions] = None
 
 @dataclass
 class GetProfilesResponse:

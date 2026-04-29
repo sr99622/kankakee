@@ -6,6 +6,19 @@ import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, NS
 
 @dataclass
+class NTPInformation:
+    from_dhcp: Optional[bool] = None
+    ntp_from_dhcp: list[str] = field(default_factory=list)
+    ntp_manual: list[str] = field(default_factory=list)
+
+@dataclass
+class DNSInformation:
+    from_dhcp: Optional[bool] = None
+    search_domain: list[str] = field(default_factory=list)
+    dns_from_dhcp: list[str] = field(default_factory=list)
+    dns_manual: list[str] = field(default_factory=list)
+
+@dataclass
 class PrefixedIPv4Address:
     address: Optional[str] = None
     prefix_length: Optional[int] = None
@@ -63,35 +76,6 @@ class NetworkInterface:
     link: NetworkInterfaceLink = field(default_factory=NetworkInterfaceLink)
     ipv4: Optional[IPv4NetworkInterface] = None
     ipv6: Optional[IPv6NetworkInterface] = None
-
-'''
-def text(elem: ET.Element, path: str) -> Optional[str]:
-    found = elem.find(path, NS)
-    return found.text.strip() if found is not None and found.text else None
-
-def bool_text(elem: ET.Element, path: str) -> Optional[bool]:
-    value = text(elem, path)
-    if value is None:
-        return None
-    return value.lower() == "true"
-
-def int_text(elem: ET.Element, path: str) -> Optional[int]:
-    value = text(elem, path)
-    return int(value) if value is not None else None
-
-def float_text(elem: ET.Element, path: str) -> Optional[float]:
-    value = text(elem, path)
-    return float(value) if value is not None else None
-
-def attr(elem: ET.Element, name: str) -> Optional[str]:
-    return elem.attrib.get(name)
-
-def bool_attr(elem: ET.Element, name: str) -> Optional[bool]:
-    value = attr(elem, name)
-    if value is None:
-        return None
-    return value.lower() == "true"
-'''
 
 def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[PrefixedIPv4Address]:
     if elem is None:
@@ -227,3 +211,77 @@ def parse_network_interfaces_response(xml: str) -> list[NetworkInterface]:
         )
 
     return interfaces
+
+def parse_ip_address(elem: Optional[ET.Element]) -> Optional[str]:
+    if elem is None:
+        return None
+
+    return (
+        text(elem, "tt:IPv4Address")
+        or text(elem, "tt:IPv6Address")
+    )
+
+def parse_dns_response(xml: str) -> DNSInformation:
+    root = ET.fromstring(xml)
+
+    dns_elem = root.find(
+        ".//tds:GetDNSResponse/tds:DNSInformation",
+        NS,
+    )
+    if dns_elem is None:
+        raise ValueError("Could not find tds:GetDNSResponse/tds:DNSInformation")
+
+    return DNSInformation(
+        from_dhcp=bool_text(dns_elem, "tt:FromDHCP"),
+        search_domain=[
+            elem.text.strip()
+            for elem in dns_elem.findall("tt:SearchDomain", NS)
+            if elem.text
+        ],
+        dns_from_dhcp=[
+            addr
+            for addr in (
+                parse_ip_address(elem)
+                for elem in dns_elem.findall("tt:DNSFromDHCP", NS)
+            )
+            if addr is not None
+        ],
+        dns_manual=[
+            addr
+            for addr in (
+                parse_ip_address(elem)
+                for elem in dns_elem.findall("tt:DNSManual", NS)
+            )
+            if addr is not None
+        ],
+    )
+
+def parse_ntp_response(xml: str) -> NTPInformation:
+    root = ET.fromstring(xml)
+
+    ntp_elem = root.find(
+        ".//tds:GetNTPResponse/tds:NTPInformation",
+        NS,
+    )
+    if ntp_elem is None:
+        raise ValueError("Could not find tds:GetNTPResponse/tds:NTPInformation")
+
+    return NTPInformation(
+        from_dhcp=bool_text(ntp_elem, "tt:FromDHCP"),
+        ntp_from_dhcp=[
+            addr
+            for addr in (
+                parse_ip_address(elem)
+                for elem in ntp_elem.findall("tt:NTPFromDHCP", NS)
+            )
+            if addr is not None
+        ],
+        ntp_manual=[
+            addr
+            for addr in (
+                parse_ip_address(elem)
+                for elem in ntp_elem.findall("tt:NTPManual", NS)
+            )
+            if addr is not None
+        ],
+    )
