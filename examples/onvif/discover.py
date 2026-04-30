@@ -209,7 +209,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                 if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
                     imaging = parse_imaging_settings_response(imaging_xml)
                     setattr(profile, "imaging_settings", imaging)
-                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, "profile.video_source.source_token"):
+                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
     
