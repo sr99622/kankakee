@@ -14,6 +14,7 @@ from typing import Optional
 from utils.xml import get_xml_value
 from utils.soap import onvif_post
 from kankakee import Adapter, NetUtil, Broadcaster
+from functools import wraps
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, parse_profiles_response, \
@@ -23,6 +24,16 @@ from datastructures.network import NetworkInterface, DNSInformation, NTPInformat
         parse_network_interfaces_response, parse_dns_response, parse_ntp_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
+
+def safe_run(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {e}")
+            return None
+    return wrapper
 
 def check_ip_in_subnet(ip_to_check, network_ip, netmask):
     try:
@@ -50,23 +61,27 @@ def get_camera_name(xml_data):
     return "UNKNOWN CAMERA"
 
 def get_time_offset(url):
-    soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    response = requests.post(url, data=soap, timeout=5)
-    response.raise_for_status()
+    try:
+        soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+        response = requests.post(url, data=soap, timeout=5)
+        response.raise_for_status()
 
-    base = "//s:Body//tds:GetSystemDateAndTimeResponse//tds:SystemDateAndTime"
-    hour   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Hour")
-    minute = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Minute")
-    second = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Second")
-    year   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Year")
-    month  = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Month")
-    day    = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Day")
-    dst    = get_xml_value(response.content, f"{base}//tt:DaylightSavings") == "true"
-    tz     = get_xml_value(response.content, f"{base}//tt:TimeZone//tt:TZ")
+        base = "//s:Body//tds:GetSystemDateAndTimeResponse//tds:SystemDateAndTime"
+        hour   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Hour")
+        minute = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Minute")
+        second = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Second")
+        year   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Year")
+        month  = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Month")
+        day    = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Day")
+        dst    = get_xml_value(response.content, f"{base}//tt:DaylightSavings") == "true"
+        tz     = get_xml_value(response.content, f"{base}//tt:TimeZone//tt:TZ")
 
-    camera_utc = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), tzinfo=timezone.utc).astimezone(timezone.utc)
-    computer_utc = datetime.now(timezone.utc)
-    return int((camera_utc - computer_utc).total_seconds())
+        camera_utc = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), tzinfo=timezone.utc).astimezone(timezone.utc)
+        computer_utc = datetime.now(timezone.utc)
+        return int((camera_utc - computer_utc).total_seconds())
+    except Exception as ex:
+        logger.error("Get Time Offset error: {ex}")
+        return 0
 
 def get_capabilities(url, username, password, time_offset):
     body = """<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"""
@@ -76,50 +91,62 @@ def get_device_information(url, username, password, time_offset):
     body = """<tds:GetDeviceInformation/>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_profiles(url, username, password, time_offset):
     body = "<trt:GetProfiles/>"
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_video_encoder_configuration(url, username, password, time_offset, video_encoder_configuration_token):
     body = f"""<trt:GetVideoEncoderConfiguration><trt:ConfigurationToken>{video_encoder_configuration_token}</trt:ConfigurationToken></trt:GetVideoEncoderConfiguration>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_video_encoder_configuration_options(url, username, password, time_offset, configuration_token, profile_token):
     body = f"""<trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{configuration_token}</trt:ConfigurationToken><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_audio_encoder_configuration_options(url, username, password, time_offset, profile_token):
     body = f"""<trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_network_interfaces(url, username, password, time_offset):
     body = "<tds:GetNetworkInterfaces/>"
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_stream_uri(url, username, password, time_offset, profile_token):
     body = f"""<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetStreamUri>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_snapshot_uri(url, username, password, time_offset, profile_token):
     body = f"""<trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_network_default_gateway(url, username, password, time_offset):
     body = f"""<tds:GetNetworkDefaultGateway/>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_dns(url, username, password, time_offset):
     body = f"""<tds:GetDNS/>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_ntp(url, username, password, time_offset):
     body = f"""<tds:GetNTP/>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_imaging_settings(url, username, password, time_offset, video_source_token):
     body = f"""<timg:GetImagingSettings><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetImagingSettings>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
 def get_imaging_options(url, username, password, time_offset, video_source_token):
     body = f"""<timg:GetOptions><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetOptions>"""
     return onvif_post(url, body, username, password, time_offset)
@@ -163,16 +190,19 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     setattr(camera, "password", password)
     setattr(camera, "time_offset", get_time_offset(xaddr))
 
-    if capabilities_xml := get_capabilities(xaddr, camera.username, camera.password, camera.time_offset):
+    try:
+        capabilities_xml = get_capabilities(xaddr, camera.username, camera.password, camera.time_offset)
         capabilities = parse_capabilities_response(capabilities_xml)
         setattr(camera, "capabilities", capabilities)
-    else:
-        logger.error("UNABLE TO COMMUNICATE WITH CAMERA")
-        return None 
-    
-    if device_information_xml := get_device_information(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
+        device_information_xml = get_device_information(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
         serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
         setattr(camera, "serial_number", serial_number)
+    except Exception as ex:
+        logger.error(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
+        if "notauthorized" in str(ex).lower():
+            print("AUTHORIZATION FAILURE")
+        return None 
+    
     if network_interfaces_xml := get_network_interfaces(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
         network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
         setattr(camera, "network_interfaces", network_interfaces)
@@ -209,7 +239,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                 if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
                     imaging = parse_imaging_settings_response(imaging_xml)
                     setattr(profile, "imaging_settings", imaging)
-                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
+                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, "profile.video_source.source_token"):
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
     

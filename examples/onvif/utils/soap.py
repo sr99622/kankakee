@@ -7,11 +7,12 @@ import requests
 from datetime import datetime, timezone, timedelta
 from loguru import logger
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Callable
 from lxml import etree
 from .xml import NS
 
 POST_TIMEOUT = 5
+LAST_ERROR = ""
 
 @dataclass
 class SoapFault:
@@ -85,15 +86,10 @@ def build_soap_envelope(body: str, username: str, password: str, time_offset: in
 
 def onvif_post(url: str, body: str, username: str, password: str, time_offset: int) -> bytes:
     soap = build_soap_envelope(body, username, password, time_offset)
-
-    output = None
-    try:
-        response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
-        fault = parse_soap_fault(response.text)
-        if fault:
-            raise ValueError(str(fault))
-        response.raise_for_status()
-        output = response.content
-    except Exception as ex:
-        logger.error(f'error: {ex}')
+    response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+    fault = parse_soap_fault(response.text)
+    if fault:
+        raise ValueError(str(fault))
+    response.raise_for_status()
+    output = response.content
     return output
