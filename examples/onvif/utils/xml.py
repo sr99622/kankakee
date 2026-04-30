@@ -16,6 +16,8 @@ NS = {
     "d": "http://schemas.xmlsoap.org/ws/2005/04/discovery",
     "ter": "http://www.onvif.org/ver10/error",
     "a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
+    "wsse": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
+    "wsu": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd",
 }
 
 def text(elem: ET.Element, path: str) -> Optional[str]:

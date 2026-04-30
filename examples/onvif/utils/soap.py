@@ -5,17 +5,50 @@ import base64
 import hashlib
 import requests
 from datetime import datetime, timezone, timedelta
+from loguru import logger
+from dataclasses import dataclass, field
+from typing import Optional
+from lxml import etree
+from .xml import NS
 
+POST_TIMEOUT = 5
 
-SOAP_ENV_NS = "http://www.w3.org/2003/05/soap-envelope"
-WSSE_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-WSU_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
+@dataclass
+class SoapFault:
+    code: Optional[str] = None
+    subcodes: list[str] = field(default_factory=list)
+    reason: Optional[str] = None
+    detail: Optional[str] = None
 
-DEVICE_NS = "http://www.onvif.org/ver10/device/wsdl"
-MEDIA_NS = "http://www.onvif.org/ver10/media/wsdl"
-SCHEMA_NS = "http://www.onvif.org/ver10/schema"
-IMAGING_NS = "http://www.onvif.org/ver20/imaging/wsdl"
+def parse_soap_fault(xml_text: str) -> Optional[SoapFault]:
+    root = etree.fromstring(xml_text.encode("utf-8"))
 
+    fault = root.find(".//s:Fault", namespaces=NS)
+    if fault is None:
+        return None
+
+    out = SoapFault()
+
+    code_value = fault.find(".//s:Code//s:Value", namespaces=NS)
+    if code_value is not None and code_value.text:
+        out.code = code_value.text.strip()
+
+    subcode = fault.find(".//s:Code//s:Subcode", namespaces=NS)
+    while subcode is not None:
+        value = subcode.find(".//s:Value", namespaces=NS)
+        if value is not None and value.text:
+            out.subcodes.append(value.text.strip())
+        subcode = subcode.find(".//s:Subcode", namespaces=NS)
+
+    reason = fault.find(".//s:Reason//s:Text", namespaces=NS)
+    if reason is not None and reason.text:
+        out.reason = reason.text.strip()
+
+    detail = fault.find(".//s:Detail", namespaces=NS)
+    if detail is not None:
+        out.detail = "".join(detail.itertext()).strip() or None
+
+    return out
 
 def create_wsse_header_data(password: str, offset_seconds: int) -> tuple[str, str, str]:
     nonce_raw = os.urandom(20)
@@ -26,13 +59,12 @@ def create_wsse_header_data(password: str, offset_seconds: int) -> tuple[str, st
     password_digest = base64.b64encode(digest_raw).decode("ascii")
     return password_digest, nonce_b64, created
 
-
 def build_wsse_header(username: str, password: str, time_offset: int) -> str:
     password_digest, nonce, created = create_wsse_header_data(password, time_offset)
 
     return f"""
-<SOAP-ENV:Header>
-  <wsse:Security SOAP-ENV:mustUnderstand="1">
+<s:Header>
+  <wsse:Security s:mustUnderstand="1">
     <wsse:UsernameToken>
       <wsse:Username>{username}</wsse:Username>
       <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{password_digest}</wsse:Password>
@@ -40,53 +72,28 @@ def build_wsse_header(username: str, password: str, time_offset: int) -> str:
       <wsu:Created>{created}</wsu:Created>
     </wsse:UsernameToken>
   </wsse:Security>
-</SOAP-ENV:Header>
+</s:Header>
 """.strip()
 
-
-def build_soap_envelope(
-    body: str,
-    username: str,
-    password: str,
-    time_offset: int,
-    service: str,
-    include_tt: bool = False,
-) -> str:
-    if service == "device":
-        service_ns = f'xmlns:tds="{DEVICE_NS}"'
-    elif service == "media":
-        service_ns = f'xmlns:trt="{MEDIA_NS}"'
-    elif service == "imaging":
-        service_ns = f'xmlns:timg="{IMAGING_NS}"'
-    else:
-        raise ValueError(f"Unknown ONVIF service: {service}")
-
-    tt_ns = f' xmlns:tt="{SCHEMA_NS}"' if include_tt else ""
-
+def build_soap_envelope(body: str, username: str, password: str, time_offset: int) -> str:
     header = build_wsse_header(username, password, time_offset)
+    args = []
+    for key in NS:
+        args.append(f'xmlns:{key}=\"{NS[key]}\"')
+    namespace = " ".join(args)
+    return f"""<s:Envelope {namespace}>{header}<s:Body>{body}</s:Body></s:Envelope>"""
 
-    return f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="{SOAP_ENV_NS}" {service_ns}{tt_ns} xmlns:wsse="{WSSE_NS}" xmlns:wsu="{WSU_NS}">{header}<SOAP-ENV:Body>{body}</SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+def onvif_post(url: str, body: str, username: str, password: str, time_offset: int) -> bytes:
+    soap = build_soap_envelope(body, username, password, time_offset)
 
-
-def onvif_post(
-    url: str,
-    body: str,
-    username: str,
-    password: str,
-    time_offset: int,
-    service: str,
-    include_tt: bool = False,
-    timeout: int = 5,
-) -> bytes:
-    soap = build_soap_envelope(
-        body=body,
-        username=username,
-        password=password,
-        time_offset=time_offset,
-        service=service,
-        include_tt=include_tt,
-    )
-
-    response = requests.post(url, data=soap, timeout=timeout)
-    response.raise_for_status()
-    return response.content
+    output = None
+    try:
+        response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+        fault = parse_soap_fault(response.text)
+        if fault:
+            raise ValueError(str(fault))
+        response.raise_for_status()
+        output = response.content
+    except Exception as ex:
+        logger.error(f'error: {ex}')
+    return output
