@@ -20,11 +20,12 @@ from datastructures.capabilities import Capabilities, parse_capabilities_respons
 from datastructures.profiles import Profile, parse_profiles_response, \
         parse_video_encoder_configuration_options_response, \
         parse_audio_encoder_configuration_options_response
-from datastructures.network import NetworkInterface, DNSInformation, NTPInformation, \
-        parse_network_interfaces_response, parse_dns_response, parse_ntp_response
+from datastructures.network import NetworkInterface, DNSInformation, \
+        parse_network_interfaces_response, parse_dns_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
-from datastructures.datetime import SystemDateAndTime, parse_system_date_and_time_response
+from datastructures.datetime import SystemDateAndTime,  NTPInformation, NetworkHost, \
+        parse_system_date_and_time_response, parse_ntp_response
 
 def safe_run(func):
     @wraps(func)
@@ -176,9 +177,31 @@ def set_system_date_and_time(url:str, username: str, password: str, time_offset:
 </tds:SetSystemDateAndTime>""".strip()
     return onvif_post(url, body, username, password, time_offset)
 
+
 @safe_run
 def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> None:
-    ...
+
+    manual_settings = ""
+    if not ntp.from_dhcp:
+        arg = ""
+        manual = ntp.ntp_manual[0]
+        match manual.type:
+            case 'IPv4':
+                address = manual.ipv4 if manual.ipv4 else ""
+                arg = f"<tt:IPv4Address>{address}</tt:IPv4Address>"
+            case 'IPv6':
+                address = manual.ipv6 if manual.ipv6 else ""
+                arg = f"<tt:IPv6Address>{address}</tt:IPv6Address>"
+            case 'DNS':
+                address = manual.dns if manual.dns else ""
+                arg = f"<tt:DNSname>{address}</tt:DNSname>"
+
+        manual_settings = f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
+
+    body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+
+    print(body)
+    return onvif_post(url, body, username, password, time_offset)
 
 @dataclass
 class Camera:
@@ -245,11 +268,15 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     if ntp_xml := get_ntp(capabilities.device.xaddr, username, password, camera.time_offset):
         ntp = parse_ntp_response(ntp_xml)
         setattr(camera, "ntp", ntp)
-    if sdt_xml := get_system_date_and_time(capabilities.device.xaddr):
-        sdt = parse_system_date_and_time_response(sdt_xml)
-        print("GOT SYSTEM DATE AND TIME SETTINGS")
-        response = set_system_date_and_time(capabilities.device.xaddr, username, password, camera.time_offset, sdt)
-        print(response)
+
+        #ntp.from_dhcp = True
+        #ntp.ntp_manual = [NetworkHost(type='IPv4', ipv4='10.1.1.67')]
+        #ntp.ntp_manual = [NetworkHost(type='DNS', dns='pool.ntp.org')]
+        #set_ntp(capabilities.device.xaddr, username, password, camera.time_offset, ntp)
+    
+    #if sdt_xml := get_system_date_and_time(capabilities.device.xaddr):
+    #    sdt = parse_system_date_and_time_response(sdt_xml)
+    #    response = set_system_date_and_time(capabilities.device.xaddr, username, password, camera.time_offset, sdt)
 
     if profiles_xml := get_profiles(capabilities.media.xaddr, username, password, camera.time_offset):
         profiles = parse_profiles_response(profiles_xml)

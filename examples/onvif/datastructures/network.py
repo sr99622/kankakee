@@ -5,11 +5,13 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, NS
 
+'''
 @dataclass
 class NTPInformation:
     from_dhcp: Optional[bool] = None
     ntp_from_dhcp: list[str] = field(default_factory=list)
     ntp_manual: list[str] = field(default_factory=list)
+'''
 
 @dataclass
 class DNSInformation:
@@ -256,6 +258,7 @@ def parse_dns_response(xml: str) -> DNSInformation:
         ],
     )
 
+'''
 def parse_ntp_response(xml: str) -> NTPInformation:
     root = ET.fromstring(xml)
 
@@ -285,3 +288,4 @@ def parse_ntp_response(xml: str) -> NTPInformation:
             if addr is not None
         ],
     )
+'''

@@ -6,6 +6,19 @@ import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 
 @dataclass
+class NetworkHost:
+    type: Optional[str] = None
+    ipv4: Optional[str] = None
+    ipv6: Optional[str] = None
+    dns: Optional[str] = None
+
+@dataclass
+class NTPInformation:
+    from_dhcp: Optional[bool] = None
+    ntp_from_dhcp: list[NetworkHost] = field(default_factory=list)
+    ntp_manual: list[NetworkHost] = field(default_factory=list)
+
+@dataclass
 class Time:
     hour: Optional[int] = None
     minute: Optional[int] = None
@@ -90,4 +103,38 @@ def parse_system_date_and_time_response(xml: str) -> SystemDateAndTime:
         time_zone=parse_timezone(elem.find("tt:TimeZone", NS)),
         utc_date_time=parse_datetime(elem.find("tt:UTCDateTime", NS)),
         local_date_time=parse_datetime(elem.find("tt:LocalDateTime", NS)),
+    )
+
+def parse_network_host(elem: ET.Element) -> NetworkHost:
+    return NetworkHost(
+        type=text(elem, "tt:Type"),
+        ipv4=text(elem, "tt:IPv4Address"),
+        ipv6=text(elem, "tt:IPv6Address"),
+        dns=text(elem, "tt:DNSname"),
+    )
+    
+def parse_ip_address(elem):
+    return (
+        text(elem, "tt:IPv4Address")
+        or text(elem, "tt:IPv6Address")
+        or text(elem, "tt:DNSname")   # <-- missing piece
+    )
+
+def parse_ntp_response(xml: str) -> NTPInformation:
+    root = ET.fromstring(xml)
+
+    ntp_elem = root.find(".//tds:NTPInformation", NS)
+    if ntp_elem is None:
+        raise ValueError("Missing NTPInformation")
+
+    return NTPInformation(
+        from_dhcp=bool_text(ntp_elem, "tt:FromDHCP"),
+        ntp_from_dhcp=[
+            parse_network_host(e)
+            for e in ntp_elem.findall("tt:NTPFromDHCP", NS)
+        ],
+        ntp_manual=[
+            parse_network_host(e)
+            for e in ntp_elem.findall("tt:NTPManual", NS)
+        ],
     )
