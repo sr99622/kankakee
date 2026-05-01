@@ -12,7 +12,6 @@ from lxml import etree
 from .xml import NS
 
 POST_TIMEOUT = 5
-LAST_ERROR = ""
 
 @dataclass
 class SoapFault:

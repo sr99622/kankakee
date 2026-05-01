@@ -12,7 +12,7 @@ import ipaddress
 from dataclasses import dataclass, field
 from typing import Optional
 from utils.xml import get_xml_value
-from utils.soap import onvif_post
+from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from kankakee import Adapter, NetUtil, Broadcaster
 from functools import wraps
 
@@ -24,6 +24,7 @@ from datastructures.network import NetworkInterface, DNSInformation, NTPInformat
         parse_network_interfaces_response, parse_dns_response, parse_ntp_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
+from datastructures.datetime import SystemDateAndTime, parse_system_date_and_time_response
 
 def safe_run(func):
     @wraps(func)
@@ -60,27 +61,22 @@ def get_camera_name(xml_data):
         return name
     return "UNKNOWN CAMERA"
 
+# this camera query does not require authentication, so it has a different design pattern than those that do
 def get_time_offset(url):
     try:
         soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-        response = requests.post(url, data=soap, timeout=5)
+        response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+        fault = parse_soap_fault(response.text)
+        if fault:
+            raise ValueError(str(fault))
         response.raise_for_status()
-
-        base = "//s:Body//tds:GetSystemDateAndTimeResponse//tds:SystemDateAndTime"
-        hour   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Hour")
-        minute = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Minute")
-        second = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Time//tt:Second")
-        year   = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Year")
-        month  = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Month")
-        day    = get_xml_value(response.content, f"{base}//tt:UTCDateTime//tt:Date//tt:Day")
-        dst    = get_xml_value(response.content, f"{base}//tt:DaylightSavings") == "true"
-        tz     = get_xml_value(response.content, f"{base}//tt:TimeZone//tt:TZ")
-
-        camera_utc = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), tzinfo=timezone.utc).astimezone(timezone.utc)
+        sdt = parse_system_date_and_time_response(response.text)
+        camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
+            sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
         computer_utc = datetime.now(timezone.utc)
         return int((camera_utc - computer_utc).total_seconds())
     except Exception as ex:
-        logger.error("Get Time Offset error: {ex}")
+        logger.error(f"Get Time Offset error: {ex}")
         return 0
 
 def get_capabilities(url, username, password, time_offset):
@@ -191,6 +187,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     setattr(camera, "time_offset", get_time_offset(xaddr))
 
     try:
+        # These are the first camera queries that (may) require authentication, trap the error for user interface, don't use @safe_run
         capabilities_xml = get_capabilities(xaddr, camera.username, camera.password, camera.time_offset)
         capabilities = parse_capabilities_response(capabilities_xml)
         setattr(camera, "capabilities", capabilities)
@@ -239,7 +236,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                 if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
                     imaging = parse_imaging_settings_response(imaging_xml)
                     setattr(profile, "imaging_settings", imaging)
-                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, "profile.video_source.source_token"):
+                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
     
