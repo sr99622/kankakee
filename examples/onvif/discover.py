@@ -61,24 +61,30 @@ def get_camera_name(xml_data: str) -> str:
         return name
     return "UNKNOWN CAMERA"
 
-# this camera query does not require authentication, so it has a different design pattern than those that do
+# this camera query does not require authorization, so it has a different design pattern than those that do
+@safe_run
+def get_system_date_and_time(url: str) -> str:
+    soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+    fault = parse_soap_fault(response.text)
+    if fault:
+        raise ValueError(str(fault))
+    response.raise_for_status()
+    return response.text
+
 def get_time_offset(url: str) -> int:
-    try:
-        soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-        response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
-        fault = parse_soap_fault(response.text)
-        if fault:
-            raise ValueError(str(fault))
-        response.raise_for_status()
-        sdt = parse_system_date_and_time_response(response.text)
+    if sdt_xml := get_system_date_and_time(url):
+        sdt = parse_system_date_and_time_response(sdt_xml)
         camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
             sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
         computer_utc = datetime.now(timezone.utc)
         return int((camera_utc - computer_utc).total_seconds())
-    except Exception as ex:
-        logger.error(f"Get Time Offset error: {ex}")
+    else:
         return 0
 
+# these two queries come first in camera data population and will trigger authorization execptions if the credentials are not correct
+# some cameras may allow get_capabilities without authorization, so both are needed for a proper credential check
+# the @safe_run decorator is not used, the authorization exception is an opportunity to collect credentials from the user
 def get_capabilities(url: str, username: str, password: str, time_offset: int) -> str:
     body = """<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"""
     return onvif_post(url, body, username, password, time_offset)
@@ -86,6 +92,7 @@ def get_capabilities(url: str, username: str, password: str, time_offset: int) -
 def get_device_information(url: str, username: str, password: str, time_offset: int) -> str:
     body = """<tds:GetDeviceInformation/>"""
     return onvif_post(url, body, username, password, time_offset)
+#######################################################################################################################################
 
 @safe_run
 def get_profiles(url: str, username: str, password: str, time_offset: int) -> str:
@@ -147,6 +154,32 @@ def get_imaging_options(url: str, username: str, password: str, time_offset: int
     body = f"""<timg:GetOptions><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
+def set_system_date_and_time(url:str, username: str, password: str, time_offset: int, sdt: SystemDateAndTime) -> None:
+    body = f"""
+<tds:SetSystemDateAndTime>
+    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
+    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
+    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
+    <tds:UTCDateTime>
+        <tt:Time>
+            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
+            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
+            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
+        </tt:Time>
+        <tt:Date>
+            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
+            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
+            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
+        </tt:Date>
+    </tds:UTCDateTime>
+</tds:SetSystemDateAndTime>""".strip()
+    return onvif_post(url, body, username, password, time_offset)
+
+@safe_run
+def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> None:
+    ...
+
 @dataclass
 class Camera:
     xaddr: Optional[str] = None
@@ -187,11 +220,11 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     setattr(camera, "time_offset", get_time_offset(xaddr))
 
     try:
-        # These are the first camera queries that (may) require authentication, trap the error for user interface, don't use @safe_run
-        capabilities_xml = get_capabilities(xaddr, camera.username, camera.password, camera.time_offset)
+        # These are the first camera queries that (may) require authorization, trap the error for user interface, don't use @safe_run
+        capabilities_xml = get_capabilities(xaddr, username, password, camera.time_offset)
         capabilities = parse_capabilities_response(capabilities_xml)
         setattr(camera, "capabilities", capabilities)
-        device_information_xml = get_device_information(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset)
+        device_information_xml = get_device_information(capabilities.device.xaddr, username, password, camera.time_offset)
         serial_number = get_xml_value(device_information_xml, "//s:Body//tds:GetDeviceInformationResponse//tds:SerialNumber")
         setattr(camera, "serial_number", serial_number)
     except Exception as ex:
@@ -200,43 +233,48 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             print("AUTHORIZATION FAILURE")
         return None 
     
-    if network_interfaces_xml := get_network_interfaces(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
+    if network_interfaces_xml := get_network_interfaces(capabilities.device.xaddr, username, password, camera.time_offset):
         network_interfaces = parse_network_interfaces_response(network_interfaces_xml)
         setattr(camera, "network_interfaces", network_interfaces)
-    if network_gateway_xml := get_network_default_gateway(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
+    if network_gateway_xml := get_network_default_gateway(capabilities.device.xaddr, username, password, camera.time_offset):
         network_gateway = get_xml_value(network_gateway_xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address")
         setattr(camera, "network_gateway", network_gateway)
-    if dns_xml := get_dns(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
+    if dns_xml := get_dns(capabilities.device.xaddr, username, password, camera.time_offset):
         dns = parse_dns_response(dns_xml)
         setattr(camera, "dns", dns)
-    if ntp_xml := get_ntp(capabilities.device.xaddr, camera.username, camera.password, camera.time_offset):
+    if ntp_xml := get_ntp(capabilities.device.xaddr, username, password, camera.time_offset):
         ntp = parse_ntp_response(ntp_xml)
         setattr(camera, "ntp", ntp)
+    if sdt_xml := get_system_date_and_time(capabilities.device.xaddr):
+        sdt = parse_system_date_and_time_response(sdt_xml)
+        print("GOT SYSTEM DATE AND TIME SETTINGS")
+        response = set_system_date_and_time(capabilities.device.xaddr, username, password, camera.time_offset, sdt)
+        print(response)
 
-    if profiles_xml := get_profiles(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset):
+    if profiles_xml := get_profiles(capabilities.media.xaddr, username, password, camera.time_offset):
         profiles = parse_profiles_response(profiles_xml)
         setattr(camera, "profiles", profiles)
         for profile in profiles:
-            if stream_uri_xml := get_stream_uri(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token):
+            if stream_uri_xml := get_stream_uri(capabilities.media.xaddr, username, password, camera.time_offset, profile.token):
                 stream_uri = get_xml_value(stream_uri_xml, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri")
                 setattr(profile, "stream_uri", stream_uri)
-            if snapshot_uri_xml := get_snapshot_uri(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token):
+            if snapshot_uri_xml := get_snapshot_uri(capabilities.media.xaddr, username, password, camera.time_offset, profile.token):
                 snapshot_uri = get_xml_value(snapshot_uri_xml, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri")
                 setattr(profile, "snapshot_uri", snapshot_uri)
-            if video_options_xml := get_video_encoder_configuration_options(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.video_encoder.token, profile.token):
+            if video_options_xml := get_video_encoder_configuration_options(capabilities.media.xaddr, username, password, camera.time_offset, profile.video_encoder.token, profile.token):
                 video_encoder_options = parse_video_encoder_configuration_options_response(video_options_xml)
                 setattr(profile, "video_encoder_options", video_encoder_options)
             
             if profile.audio_encoder:
-                if audio_options_xml := get_audio_encoder_configuration_options(capabilities.media.xaddr, camera.username, camera.password, camera.time_offset, profile.token):
+                if audio_options_xml := get_audio_encoder_configuration_options(capabilities.media.xaddr, username, password, camera.time_offset, profile.token):
                     audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
                     setattr(profile, "audio_encoder_options", audio_options)
 
             if capabilities.imaging:
-                if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
+                if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token):
                     imaging = parse_imaging_settings_response(imaging_xml)
                     setattr(profile, "imaging_settings", imaging)
-                if options_xml := get_imaging_options(capabilities.imaging.xaddr, camera.username, camera.password, camera.time_offset, profile.video_source.source_token):
+                if options_xml := get_imaging_options(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token):
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
     

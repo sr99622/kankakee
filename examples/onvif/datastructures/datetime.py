@@ -54,7 +54,6 @@ def parse_date(elem: Optional[ET.Element]) -> Date:
         day=int_text(elem, "tt:Day"),
     )
 
-
 def parse_datetime(elem: Optional[ET.Element]) -> Optional[DateTime]:
     if elem is None:
         return None
