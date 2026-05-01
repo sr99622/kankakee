@@ -36,7 +36,7 @@ def safe_run(func):
             return None
     return wrapper
 
-def check_ip_in_subnet(ip_to_check, network_ip, netmask):
+def check_ip_in_subnet(ip_to_check: str, network_ip: str, netmask: int) -> bool:
     try:
         network = ipaddress.IPv4Network(f"{network_ip}/{netmask}", strict=False)
         address = ipaddress.IPv4Address(ip_to_check)
@@ -44,7 +44,7 @@ def check_ip_in_subnet(ip_to_check, network_ip, netmask):
     except ValueError:
         return False
 
-def get_camera_name(xml_data):
+def get_camera_name(xml_data: str) -> str:
     scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
     name_id = "onvif://www.onvif.org/name/"
     hdwr_id = "onvif://www.onvif.org/hardware/"
@@ -62,7 +62,7 @@ def get_camera_name(xml_data):
     return "UNKNOWN CAMERA"
 
 # this camera query does not require authentication, so it has a different design pattern than those that do
-def get_time_offset(url):
+def get_time_offset(url: str) -> int:
     try:
         soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
         response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
@@ -79,71 +79,71 @@ def get_time_offset(url):
         logger.error(f"Get Time Offset error: {ex}")
         return 0
 
-def get_capabilities(url, username, password, time_offset):
+def get_capabilities(url: str, username: str, password: str, time_offset: int) -> str:
     body = """<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"""
     return onvif_post(url, body, username, password, time_offset)
 
-def get_device_information(url, username, password, time_offset):
+def get_device_information(url: str, username: str, password: str, time_offset: int) -> str:
     body = """<tds:GetDeviceInformation/>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_profiles(url, username, password, time_offset):
+def get_profiles(url: str, username: str, password: str, time_offset: int) -> str:
     body = "<trt:GetProfiles/>"
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_video_encoder_configuration(url, username, password, time_offset, video_encoder_configuration_token):
+def get_video_encoder_configuration(url: str, username: str, password: str, time_offset: int, video_encoder_configuration_token: str) -> str:
     body = f"""<trt:GetVideoEncoderConfiguration><trt:ConfigurationToken>{video_encoder_configuration_token}</trt:ConfigurationToken></trt:GetVideoEncoderConfiguration>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_video_encoder_configuration_options(url, username, password, time_offset, configuration_token, profile_token):
+def get_video_encoder_configuration_options(url: str, username: str, password: str, time_offset: int, configuration_token: str, profile_token: str) -> str:
     body = f"""<trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{configuration_token}</trt:ConfigurationToken><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_audio_encoder_configuration_options(url, username, password, time_offset, profile_token):
+def get_audio_encoder_configuration_options(url: str, username: str, password: str, time_offset: int, profile_token: str) -> str:
     body = f"""<trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_network_interfaces(url, username, password, time_offset):
+def get_network_interfaces(url: str, username: str, password: str, time_offset: int) -> str:
     body = "<tds:GetNetworkInterfaces/>"
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_stream_uri(url, username, password, time_offset, profile_token):
+def get_stream_uri(url: str, username: str, password: str, time_offset: int, profile_token: str) -> str:
     body = f"""<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetStreamUri>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_snapshot_uri(url, username, password, time_offset, profile_token):
+def get_snapshot_uri(url: str, username: str, password: str, time_offset: int, profile_token: str) -> str:
     body = f"""<trt:GetSnapshotUri><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:GetSnapshotUri>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_network_default_gateway(url, username, password, time_offset):
+def get_network_default_gateway(url: str, username: str, password: str, time_offset: int) -> str:
     body = f"""<tds:GetNetworkDefaultGateway/>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_dns(url, username, password, time_offset):
+def get_dns(url: str, username: str, password: str, time_offset: int) -> str:
     body = f"""<tds:GetDNS/>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_ntp(url, username, password, time_offset):
+def get_ntp(url: str, username: str, password: str, time_offset: int) -> str:
     body = f"""<tds:GetNTP/>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_imaging_settings(url, username, password, time_offset, video_source_token):
+def get_imaging_settings(url: str, username: str, password: str, time_offset: int, video_source_token: str) -> str:
     body = f"""<timg:GetImagingSettings><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetImagingSettings>"""
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def get_imaging_options(url, username, password, time_offset, video_source_token):
+def get_imaging_options(url: str, username: str, password: str, time_offset: int, video_source_token: str) -> str:
     body = f"""<timg:GetOptions><timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken></timg:GetOptions>"""
     return onvif_post(url, body, username, password, time_offset)
 

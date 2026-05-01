@@ -83,12 +83,12 @@ def build_soap_envelope(body: str, username: str, password: str, time_offset: in
     namespace = " ".join(args)
     return f"""<s:Envelope {namespace}>{header}<s:Body>{body}</s:Body></s:Envelope>"""
 
-def onvif_post(url: str, body: str, username: str, password: str, time_offset: int) -> bytes:
+def onvif_post(url: str, body: str, username: str, password: str, time_offset: int) -> str:
     soap = build_soap_envelope(body, username, password, time_offset)
     response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
     fault = parse_soap_fault(response.text)
     if fault:
         raise ValueError(str(fault))
     response.raise_for_status()
-    output = response.content
+    output = response.text
     return output
