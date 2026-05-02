@@ -52,6 +52,7 @@ class VideoEncoderConfiguration:
     multicast: MulticastConfiguration = field(default_factory=MulticastConfiguration)
     session_timeout: Optional[str] = None
     gov_length: Optional[int] = 1
+    profile: Optional[str] = None
 
 @dataclass
 class IntRange:
@@ -241,6 +242,7 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
                 multicast=parse_multicast(video_encoder.find("tt:Multicast", NS)),
                 session_timeout=text(video_encoder, "tt:SessionTimeout"),
                 gov_length=int_text(video_encoder, "tt:H264/tt:GovLength"),
+                profile=text(video_encoder, "tt:H264/tt:H264Profile")
             )
 
         audio_source = p.find("tt:AudioSourceConfiguration", NS)

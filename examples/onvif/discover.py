@@ -17,8 +17,8 @@ from kankakee import Adapter, NetUtil, Broadcaster
 from functools import wraps
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
-from datastructures.profiles import Profile, parse_profiles_response, \
-        parse_video_encoder_configuration_options_response, \
+from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
+        parse_profiles_response, parse_video_encoder_configuration_options_response, \
         parse_audio_encoder_configuration_options_response
 from datastructures.network import NetworkInterface, DNSInformation, \
         parse_network_interfaces_response, parse_dns_response
@@ -156,7 +156,7 @@ def get_imaging_options(url: str, username: str, password: str, time_offset: int
     return onvif_post(url, body, username, password, time_offset)
 
 @safe_run
-def set_system_date_and_time(url:str, username: str, password: str, time_offset: int, sdt: SystemDateAndTime) -> None:
+def set_system_date_and_time(url:str, username: str, password: str, time_offset: int, sdt: SystemDateAndTime) -> str:
     body = f"""
 <tds:SetSystemDateAndTime>
     <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
@@ -177,10 +177,8 @@ def set_system_date_and_time(url:str, username: str, password: str, time_offset:
 </tds:SetSystemDateAndTime>""".strip()
     return onvif_post(url, body, username, password, time_offset)
 
-
 @safe_run
-def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> None:
-
+def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> str:
     manual_settings = ""
     if not ntp.from_dhcp:
         arg = ""
@@ -199,8 +197,84 @@ def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInf
         manual_settings = f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
 
     body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+    return onvif_post(url, body, username, password, time_offset)
 
-    print(body)
+@safe_run
+def set_video_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: VideoEncoderConfiguration) -> str:
+    multicast_addr = ""
+    if encoder.multicast.address_type == "IPv4":
+        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
+    elif encoder.multicast.address_type == "IPv6":
+        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+
+    h264 = ""
+    if encoder.encoding == "H264":
+        h264 = f"""
+        <tt:H264>
+            <tt:GovLength>{encoder.gov_length}</tt:GovLength>
+            <tt:H264Profile>{encoder.profile}</tt:H264Profile>
+        </tt:H264>"""
+
+    body = f"""
+<trt:SetVideoEncoderConfiguration>
+    <trt:Configuration token="{encoder.token}">
+        <tt:Name>{encoder.name}</tt:Name>
+        <tt:UseCount>{encoder.use_count}</tt:UseCount>
+        <tt:Encoding>{encoder.encoding}</tt:Encoding>
+        <tt:Resolution>
+            <tt:Width>{encoder.resolution.width}</tt:Width>
+            <tt:Height>{encoder.resolution.height}</tt:Height>
+        </tt:Resolution>
+        <tt:Quality>{encoder.quality}</tt:Quality>
+        <tt:RateControl>
+            <tt:FrameRateLimit>{encoder.rate_control.frame_rate_limit}</tt:FrameRateLimit>
+            <tt:EncodingInterval>{encoder.rate_control.encoding_interval}</tt:EncodingInterval>
+            <tt:BitrateLimit>{encoder.rate_control.bitrate_limit}</tt:BitrateLimit>
+        </tt:RateControl>{h264}
+        <tt:Multicast>
+            <tt:Address>
+                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
+            </tt:Address>
+            <tt:Port>{encoder.multicast.port}</tt:Port>
+            <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
+            <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>
+        </tt:Multicast>
+        <tt:SessionTimeout>{encoder.session_timeout}</tt:SessionTimeout>
+    </trt:Configuration>
+    <trt:ForcePersistence>true</trt:ForcePersistence>
+</trt:SetVideoEncoderConfiguration>""".strip()
+
+    return onvif_post(url, body, username, password, time_offset)
+
+@safe_run
+def set_audio_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: AudioEncoderConfiguration) -> str:
+    multicast_addr = ""
+    if encoder.multicast.address_type == "IPv4":
+        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
+    elif encoder.multicast.address_type == "IPv6":
+        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+
+    body = f"""
+<trt:SetAudioEncoderConfiguration>
+    <trt:Configuration token="{encoder.token}">
+        <tt:Name>{encoder.name}</tt:Name>
+        <tt:UseCount>{encoder.use_count}</tt:UseCount>
+        <tt:Encoding>{encoder.encoding}</tt:Encoding>
+        <tt:Bitrate>{encoder.bitrate}</tt:Bitrate>
+        <tt:SampleRate>{encoder.sample_rate}</tt:SampleRate>
+        <tt:Multicast>
+            <tt:Address>
+                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
+            </tt:Address>
+            <tt:Port>{encoder.multicast.port}</tt:Port>
+            <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
+            <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>
+        </tt:Multicast>
+        <tt:SessionTimeout>{encoder.session_timeout}</tt:SessionTimeout>
+    </trt:Configuration>
+    <trt:ForcePersistence>true</trt:ForcePersistence>
+</trt:SetAudioEncoderConfiguration>""".strip()
+
     return onvif_post(url, body, username, password, time_offset)
 
 @dataclass
@@ -291,11 +365,14 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             if video_options_xml := get_video_encoder_configuration_options(capabilities.media.xaddr, username, password, camera.time_offset, profile.video_encoder.token, profile.token):
                 video_encoder_options = parse_video_encoder_configuration_options_response(video_options_xml)
                 setattr(profile, "video_encoder_options", video_encoder_options)
-            
+
             if profile.audio_encoder:
                 if audio_options_xml := get_audio_encoder_configuration_options(capabilities.media.xaddr, username, password, camera.time_offset, profile.token):
                     audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
                     setattr(profile, "audio_encoder_options", audio_options)
+
+                print(f"\nCAMERA: {camera.name}")
+                set_audio_encoder_configuration(capabilities.media.xaddr, username, password, camera.time_offset, profile.audio_encoder)
 
             if capabilities.imaging:
                 if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token):
@@ -305,6 +382,10 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
     
+        #print(f"\n{camera.name}")
+        #print(f"PROFILE: {profiles[0].video_encoder.profile}")
+        #set_video_encoder_configuration(capabilities.media.xaddr, username, password, camera.time_offset, profiles[0].video_encoder)
+            
     return camera
  
 if __name__ == "__main__":
@@ -345,6 +426,7 @@ if __name__ == "__main__":
         logger.error(f"discovery error: {ex}")
         logger.debug(traceback.format_exc())
 
+    '''
     for camera in cameras:
         print(camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
         if camera.profiles:
@@ -352,3 +434,4 @@ if __name__ == "__main__":
                 print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
                 print(profile.stream_uri)
                 print(profile.snapshot_uri)
+    '''
