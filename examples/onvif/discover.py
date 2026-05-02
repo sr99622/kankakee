@@ -276,6 +276,21 @@ def set_audio_encoder_configuration(url: str, username: str, password: str, time
 </trt:SetAudioEncoderConfiguration>""".strip()
 
     return onvif_post(url, body, username, password, time_offset)
+    
+@safe_run
+def set_imaging_settings(url: str, username: str, password: str, time_offset: int, video_source_token: str, imaging: ImagingSettings) -> str:
+    body = f"""
+<timg:SetImagingSettings>
+    <timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken>
+    <timg:ImagingSettings>
+        <tt:Brightness>{int(imaging.brightness)}</tt:Brightness>
+        <tt:ColorSaturation>{int(imaging.color_saturation)}</tt:ColorSaturation>
+        <tt:Contrast>{int(imaging.contrast)}</tt:Contrast>
+        <tt:Sharpness>{int(imaging.sharpness)}</tt:Sharpness>
+    </timg:ImagingSettings>
+</timg:SetImagingSettings>""".strip()
+
+    return onvif_post(url, body, username, password, time_offset)
 
 @dataclass
 class Camera:
@@ -371,8 +386,8 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                     audio_options = parse_audio_encoder_configuration_options_response(audio_options_xml)
                     setattr(profile, "audio_encoder_options", audio_options)
 
-                print(f"\nCAMERA: {camera.name}")
-                set_audio_encoder_configuration(capabilities.media.xaddr, username, password, camera.time_offset, profile.audio_encoder)
+                #print(f"\nCAMERA: {camera.name}")
+                #set_audio_encoder_configuration(capabilities.media.xaddr, username, password, camera.time_offset, profile.audio_encoder)
 
             if capabilities.imaging:
                 if imaging_xml := get_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token):
@@ -381,6 +396,9 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                 if options_xml := get_imaging_options(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token):
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
+
+                print(f"\nCAMERA: {camera.name}")
+                set_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token, imaging)
     
         #print(f"\n{camera.name}")
         #print(f"PROFILE: {profiles[0].video_encoder.profile}")
