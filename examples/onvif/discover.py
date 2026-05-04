@@ -15,6 +15,9 @@ from utils.xml import get_xml_value
 from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from kankakee import Adapter, NetUtil, Broadcaster
 from functools import wraps
+import struct
+import socket
+import sys
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
@@ -308,21 +311,6 @@ class Camera:
     dns: Optional[DNSInformation] = None
     ntp: Optional[NTPInformation] = None
 
-def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
-    output = None
-
-    try:
-        soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-        broadcaster = Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
-        broadcaster.errorCallback = logger.error
-        broadcaster.send(soap)
-        output = broadcaster.recv()
-    except Exception as ex:
-        logger.error(f'discover broadcast error: {ex}')
-        logger.debug(traceback.format_exc())
-
-    return output
-
 def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     camera = Camera()
     setattr(camera, "name", name)
@@ -406,6 +394,37 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             
     return camera
  
+def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
+    output = []
+
+    try:
+        soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+        #broadcaster = Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
+        #broadcaster.errorCallback = logger.error
+        #broadcaster.send(soap)
+        #output = broadcaster.recv()
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(0.5)
+        ttl = struct.pack('b', 1)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+        multicast_group = ('239.255.255.250', 3702)
+        sent = sock.sendto(soap.encode(), multicast_group)
+
+        while True:
+            try:
+                data, server = sock.recvfrom(8192)
+                #print(data, server)
+                output.append(data.decode())
+            except socket.timeout:
+                break
+
+    except Exception as ex:
+        logger.error(f'discover broadcast error: {ex}')
+        logger.debug(traceback.format_exc())
+
+    return output
+
 if __name__ == "__main__":
     cameras = []
     try:
@@ -415,9 +434,7 @@ if __name__ == "__main__":
             if not adapter.up:
                 continue
 
-            print(f"DISCOVERING CAMERAS ON {adapter.name} ({adapter.ip_address})...")
             results = discover(adapter, msg_id)
-
             for result in results:
                 relates_to = get_xml_value(result, "//s:Header//a:RelatesTo")
                 if not str(msg_id) in get_xml_value(result, "//s:Header//a:RelatesTo"):
