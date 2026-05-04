@@ -22,7 +22,6 @@
 #include <pybind11/operators.h>
 #include <pybind11/functional.h>
 
-#include "Broadcaster.h"
 #include "Adapter.h"
 
 #ifdef _WIN32
@@ -30,9 +29,11 @@
     #include "WinServer.h"
     #include "WinListener.h"
     #include "WinNetUtil.h"
+    #include "WinBroadcaster.h"
 #else
     #include "Client.h"
     #include "Listener.h"
+    #include "Broadcaster.h"
 #endif
 
 #ifdef __linux__

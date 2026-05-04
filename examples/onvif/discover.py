@@ -415,6 +415,7 @@ if __name__ == "__main__":
             if not adapter.up:
                 continue
 
+            print(f"DISCOVERING CAMERAS ON {adapter.name} ({adapter.ip_address})...")
             results = discover(adapter, msg_id)
 
             for result in results:
