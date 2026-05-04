@@ -399,11 +399,12 @@ def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
 
     try:
         soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-        #broadcaster = Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
-        #broadcaster.errorCallback = logger.error
-        #broadcaster.send(soap)
-        #output = broadcaster.recv()
+        broadcaster = Broadcaster(adapter.ip_address, "239.255.255.250", 3702)
+        broadcaster.errorCallback = logger.error
+        broadcaster.send(soap)
+        output = broadcaster.recv()
 
+        '''
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(0.5)
         ttl = struct.pack('b', 1)
@@ -418,6 +419,7 @@ def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
                 output.append(data.decode())
             except socket.timeout:
                 break
+        '''
 
     except Exception as ex:
         logger.error(f'discover broadcast error: {ex}')
