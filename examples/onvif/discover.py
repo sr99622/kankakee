@@ -397,8 +397,8 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
                     imaging_options = parse_imaging_options_response(options_xml)
                     setattr(profile, "imaging_options", imaging_options)
 
-                print(f"\nCAMERA: {camera.name}")
-                set_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token, imaging)
+                #print(f"\nCAMERA: {camera.name}")
+                #set_imaging_settings(capabilities.imaging.xaddr, username, password, camera.time_offset, profile.video_source.source_token, imaging)
     
         #print(f"\n{camera.name}")
         #print(f"PROFILE: {profiles[0].video_encoder.profile}")
@@ -444,12 +444,10 @@ if __name__ == "__main__":
         logger.error(f"discovery error: {ex}")
         logger.debug(traceback.format_exc())
 
-    '''
     for camera in cameras:
-        print(camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
+        print("*", camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
         if camera.profiles:
             for profile in camera.profiles:
                 print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
                 print(profile.stream_uri)
                 print(profile.snapshot_uri)
-    '''
