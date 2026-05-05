@@ -27,20 +27,13 @@
 #include <sstream>
 #include <iostream>
 
-#ifdef _WIN32
-    #ifndef UNICODE
-    #define UNICODE
-    #endif
-    #define WIN32_LEAN_AND_MEAN
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-#else
-    #include <unistd.h> 
-    #include <sys/types.h> 
-    #include <sys/socket.h> 
-    #include <arpa/inet.h> 
-    #include <netinet/in.h>
+#ifndef UNICODE
+#define UNICODE
 #endif
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
 
 namespace kankakee
 
@@ -49,89 +42,113 @@ namespace kankakee
 class Broadcaster
 {
 public:
-    struct sockaddr_in broadcast_address;
+    struct sockaddr_in broadcast_address = {};
     std::string if_addr;
     std::string mult_addr;
     int port;
-    int sock = -1;
+    SOCKET broadcast_socket = INVALID_SOCKET;
     std::function<void(const std::string&)> errorCallback = nullptr;
 
     ~Broadcaster() {
-        if (sock > -1) closesocket(sock);
+        if (broadcast_socket != INVALID_SOCKET) closesocket(broadcast_socket);
+        WSACleanup();
     }    
  
     Broadcaster(const std::string& if_addr, const std::string& mult_addr, int port) : 
             if_addr(if_addr), mult_addr(mult_addr), port(port) {
 
-        if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-            error("broadcast socket creation error", WSAGetLastError());
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2,2), &wsaData);
 
-        struct in_addr interface;
-        memset(&interface, 0, sizeof(interface));
-        interface.s_addr = inet_addr(if_addr.c_str());
-        if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&interface, sizeof(interface)) < 0)
-            error("broadcast IP_MULTICAST_IF error: ", WSAGetLastError());
+        int timeout_ms = 500;
+        char loopch = 0;
 
-            int timeout_ms = 500;
-            if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
-                        reinterpret_cast<const char*>(&timeout_ms),
-                        sizeof(timeout_ms)) < 0)
-                error("broadcast SO_RECVTIMEO error: ", WSAGetLastError());
+        broadcast_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (broadcast_socket == INVALID_SOCKET)
+                error("socket error", WSAGetLastError());
 
-        char loopback = 0;
-        if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-            error("broadcast IP_MULTICAST_LOOP error: ", WSAGetLastError());
+        sockaddr_in local_addr{};
+        local_addr.sin_family = AF_INET;
+        local_addr.sin_port = htons(0);
+        local_addr.sin_addr.s_addr = inet_addr(if_addr.c_str());
 
-        memset(&broadcast_address, 0, sizeof(broadcast_address)); 
-        broadcast_address.sin_family = AF_INET; 
-        broadcast_address.sin_port = htons(port); 
+        if ( bind (
+            broadcast_socket,
+            reinterpret_cast<sockaddr*>(&local_addr),
+            sizeof(local_addr)
+        ) == SOCKET_ERROR ) error("bind local interface error", WSAGetLastError());
+
+        DWORD localInterface = inet_addr(if_addr.c_str());
+
+        if ( setsockopt (
+            broadcast_socket,
+            IPPROTO_IP,
+            IP_MULTICAST_IF,
+            reinterpret_cast<const char *>(&localInterface),
+            sizeof(localInterface)
+        ) == SOCKET_ERROR ) error("IP_MULTICAST_IF error", WSAGetLastError());
+        
+        if ( setsockopt (
+            broadcast_socket, 
+            SOL_SOCKET, 
+            SO_RCVTIMEO, 
+            reinterpret_cast<const char *>(&timeout_ms), 
+            sizeof(timeout_ms)
+        ) == SOCKET_ERROR ) error("SO_RECVTIMEO error", WSAGetLastError());
+
+        if ( setsockopt (
+            broadcast_socket, 
+            IPPROTO_IP, 
+            IP_MULTICAST_LOOP, 
+            reinterpret_cast<const char *>(&loopch), 
+            sizeof(loopch)
+        ) == SOCKET_ERROR ) error("IP_MULTICAST_LOOP error", WSAGetLastError());
+
+        broadcast_address.sin_family = AF_INET;
+        broadcast_address.sin_port = htons(port);
         broadcast_address.sin_addr.s_addr = inet_addr(mult_addr.c_str());
     }
 
     void send(const std::string& msg) {
-        try {
-            if (sendto(sock, msg.c_str(), msg.length(), 0, (const struct sockaddr *) &broadcast_address, sizeof(broadcast_address)) < 0)
-                error("broadcast send error", WSAGetLastError());
-        }
-        catch (const std::exception& ex) {
-            alert(ex);
-        }
+        if ( sendto (
+            broadcast_socket, 
+            msg.c_str(), 
+            msg.length(), 
+            0, 
+            reinterpret_cast<struct sockaddr*>(&broadcast_address), 
+            sizeof(broadcast_address)
+        ) < 0 ) error("broadcast send error", WSAGetLastError());
     }
 
     std::vector<std::string> recv() {
         std::vector<std::string> output;
-
-        std::cout << "Waiting for broadcast messages..." << std::endl; 
-
         int address_size = sizeof(broadcast_address);
-        
-        try {
-            while (true) {
-                char buf[8192] = {0};
-                int result = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr*) &broadcast_address, &address_size);
-                if (result > 0) {
-                    std::cout << "Received broadcast message: " << buf << std::endl;
-                    output.push_back(buf);
+        while (true) {
+            char buf[8192] = {0};
+            int len = recvfrom(broadcast_socket, buf, sizeof(buf), 0, (struct sockaddr*) &broadcast_address, &address_size);
+            if (len > 0) {
+                output.push_back(buf);
+            } else {
+                if (len < 0) {
+                    int code = WSAGetLastError();
+                    if (code != WSAETIMEDOUT)
+                        error("broadcaster recv error", code);
                 }
-                else {
-                    if (result < 0) {
-                        if (WSAGetLastError() != WSAEWOULDBLOCK)
-                            error("broadcast recv error", WSAGetLastError());
-                    }
-                    break;
-                }
+                break;
             }
-        }
-        catch (const std::exception& ex) {
-            alert(ex);
         }
         return output;
     }
 
     void enableLoopback(bool arg) {
         int loopback = arg ? 1 : 0;
-        if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopback, sizeof(loopback)) < 0)
-            error("broadcast IP_MULTICAST_LOOP error: ", WSAGetLastError());
+        if ( setsockopt (
+            broadcast_socket, 
+            IPPROTO_IP, 
+            IP_MULTICAST_LOOP, 
+            (char *)&loopback, 
+            sizeof(loopback)
+        ) < 0 ) error("broadcast IP_MULTICAST_LOOP error: ", WSAGetLastError());
     }
 
     std::string errorToString(int err) const {

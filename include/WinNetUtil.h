@@ -101,8 +101,8 @@ public:
                 Adapter adapter;
                 //printf("\tLength of the IP_ADAPTER_ADDRESS struct: %ld\n", pCurrAddresses->Length);
 
-                printf("\n\tIfIndex (IPv4 interface): %u\n", pCurrAddresses->IfIndex);
-                printf("\tAdapter name: %s\n", pCurrAddresses->AdapterName);
+                //printf("\n\tIfIndex (IPv4 interface): %u\n", pCurrAddresses->IfIndex);
+                //printf("\tAdapter name: %s\n", pCurrAddresses->AdapterName);
 
                 //adapter.name = pCurrAddresses->AdapterName;
 
@@ -121,7 +121,7 @@ public:
 
                 pDnServer = pCurrAddresses->FirstDnsServerAddress;
                 while (pDnServer) {
-                    std::cout << "\tDNS Address: " << getSockIPAddress(pDnServer->Address.lpSockaddr) << std::endl;
+                    //std::cout << "\tDNS Address: " << getSockIPAddress(pDnServer->Address.lpSockaddr) << std::endl;
                     adapter.dns.push_back(getSockIPAddress(pDnServer->Address.lpSockaddr));
                     pDnServer = pDnServer->Next;
                 }
@@ -141,19 +141,19 @@ public:
                 adapter.dhcp = false;
                 if (pCurrAddresses->Flags & IP_ADAPTER_DHCP_ENABLED) {
                     adapter.dhcp = true;
-                    std::cout << "\tDHCP Server Address: "
-                            << getSockIPAddress(pCurrAddresses->Dhcpv4Server.lpSockaddr)
-                            << std::endl;
+                    //std::cout << "\tDHCP Server Address: "
+                    //        << getSockIPAddress(pCurrAddresses->Dhcpv4Server.lpSockaddr)
+                    //        << std::endl;
                 }
                 else {
-                    printf("\tDHCP not enabled\n");
+                    //printf("\tDHCP not enabled\n");
                 }
 
                 adapter.description = wideToUtf8(pCurrAddresses->Description);
                 adapter.name = wideToUtf8(pCurrAddresses->FriendlyName);
 
-                printf("\tDescription: %wS\n", pCurrAddresses->Description);
-                printf("\tFriendly name: %wS\n", pCurrAddresses->FriendlyName);
+                //printf("\tDescription: %wS\n", pCurrAddresses->Description);
+                //printf("\tFriendly name: %wS\n", pCurrAddresses->FriendlyName);
 
                 int length = (int)pCurrAddresses->PhysicalAddressLength;
                 if (length != 0) {
@@ -162,15 +162,15 @@ public:
                         str << std::uppercase << std::hex << std::setw(2) << std::setfill('0') << (int) pCurrAddresses->PhysicalAddress[i];
                         if (i < length - 1) str << "-";
                     }
-                    std::cout << "\tPhysical Address: " << str.str() << std::endl;
+                    //std::cout << "\tPhysical Address: " << str.str() << std::endl;
                     adapter.mac_address = str.str();
                 }
                 adapter.type = getTypeName(pCurrAddresses->IfType);
-                std::cout << "\tIF Type: " << getTypeName(pCurrAddresses->IfType) << std::endl;
+                //std::cout << "\tIF Type: " << getTypeName(pCurrAddresses->IfType) << std::endl;
                 adapter.up = std::string(getOperStatusName(pCurrAddresses->OperStatus)) == "Up";
-                std::cout << "\tOperStatus: " << getOperStatusName(pCurrAddresses->OperStatus) << std::endl;
+                //std::cout << "\tOperStatus: " << getOperStatusName(pCurrAddresses->OperStatus) << std::endl;
                 adapter.priority = GetNetworkPriority(pCurrAddresses->IfIndex);
-                std::cout << "\tNetwork Priority: " << GetNetworkPriority(pCurrAddresses->IfIndex) << std::endl;
+                //std::cout << "\tNetwork Priority: " << GetNetworkPriority(pCurrAddresses->IfIndex) << std::endl;
 
                 auto adapter1 = adapters.find(pCurrAddresses->IfIndex);
                 if (adapter1 != adapters.end()) {
@@ -178,12 +178,12 @@ public:
                     auto broadcast = parameters.find("Broadcast");
                     if (broadcast != parameters.end()) {
                         adapter.broadcast = broadcast->second;
-                        std::cout << "\tBroadcast: " << broadcast->second << std::endl;
+                        //std::cout << "\tBroadcast: " << broadcast->second << std::endl;
                     }
                     auto mask = parameters.find("SubnetMask");
                     if (mask != parameters.end()) {
                         adapter.netmask = mask->second;
-                        std::cout << "\tSubnet Mask: " << mask->second << std::endl;
+                        //std::cout << "\tSubnet Mask: " << mask->second << std::endl;
                     } 
                 }
 
