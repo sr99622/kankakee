@@ -27,20 +27,12 @@
 #include <sstream>
 #include <iostream>
 
-#ifdef _WIN32
-    #ifndef UNICODE
-    #define UNICODE
-    #endif
-    #define WIN32_LEAN_AND_MEAN
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-#else
-    #include <unistd.h> 
-    #include <sys/types.h> 
-    #include <sys/socket.h> 
-    #include <arpa/inet.h> 
-    #include <netinet/in.h>
-#endif
+#include <unistd.h> 
+#include <sys/types.h> 
+#include <sys/socket.h> 
+#include <arpa/inet.h> 
+#include <netinet/in.h>
+
 
 namespace kankakee
 

@@ -404,23 +404,6 @@ def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
         broadcaster.send(soap)
         output = broadcaster.recv()
 
-        '''
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(0.5)
-        ttl = struct.pack('b', 1)
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-        multicast_group = ('239.255.255.250', 3702)
-        sent = sock.sendto(soap.encode(), multicast_group)
-
-        while True:
-            try:
-                data, server = sock.recvfrom(8192)
-                #print(data, server)
-                output.append(data.decode())
-            except socket.timeout:
-                break
-        '''
-
     except Exception as ex:
         logger.error(f'discover broadcast error: {ex}')
         logger.debug(traceback.format_exc())
@@ -435,6 +418,11 @@ if __name__ == "__main__":
         for adapter in adapters:
             if not adapter.up:
                 continue
+            if adapter.type.lower() == "loopback":
+                continue
+
+            print("ADAPTER IP:", adapter.ip_address)
+            print("ADAPTER TYPE:", adapter.type)
 
             results = discover(adapter, msg_id)
             for result in results:
