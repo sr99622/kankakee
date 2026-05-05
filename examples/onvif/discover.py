@@ -1,7 +1,8 @@
 from loguru import logger
 import traceback
 import uuid
-import requests
+#import requests
+import niquests as requests
 from datetime import datetime, timezone, timedelta
 import re
 import base64
@@ -18,6 +19,7 @@ from functools import wraps
 import struct
 import socket
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
@@ -394,6 +396,15 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             
     return camera
  
+def camera_filled(camera: Camera) -> None:
+    print(f"DATA FILLED FOR CAMERA {camera.name}")
+    print("*", camera.name, camera.xaddr)
+    if camera.profiles:
+        for profile in camera.profiles:
+            print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
+            print(profile.stream_uri)
+            print(profile.snapshot_uri)
+
 def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
     output = []
 
@@ -412,6 +423,7 @@ def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
 
 if __name__ == "__main__":
     cameras = []
+    camera_jobs = []
     try:
         msg_id = uuid.uuid4()
         adapters = NetUtil().getAllAdapters()
@@ -434,8 +446,8 @@ if __name__ == "__main__":
                 xaddrs = get_xml_value(result, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:XAddrs").split()
                 for xaddr in xaddrs:
                     duplicate = False
-                    for camera in cameras:
-                        if xaddr == camera.xaddr:
+                    for x, n in camera_jobs:
+                        if x == xaddr:
                             duplicate = True
                             break
                     if duplicate:
@@ -445,17 +457,19 @@ if __name__ == "__main__":
                     if not check_ip_in_subnet(host, adapter.ip_address, adapter.netmask):
                         continue
 
-                    if camera := get_camera("admin", "admin123", xaddr, name):
-                        cameras.append(camera)
+                    camera_jobs.append((xaddr, name))
+        
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [
+                executor.submit(get_camera, "admin", "admin123", xaddr, name)
+                for xaddr, name in camera_jobs
+            ]
+
+            for future in as_completed(futures):
+                if camera := future.result():
+                    camera_filled(camera)
+                    cameras.append(camera)
 
     except Exception as ex:
         logger.error(f"discovery error: {ex}")
         logger.debug(traceback.format_exc())
-
-    for camera in cameras:
-        print("*", camera.name, camera.xaddr, camera.capabilities.media.xaddr, camera.capabilities.media.streaming.rtp_rtsp_tcp)
-        if camera.profiles:
-            for profile in camera.profiles:
-                print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
-                print(profile.stream_uri)
-                print(profile.snapshot_uri)
