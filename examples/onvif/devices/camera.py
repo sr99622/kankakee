@@ -1,0 +1,355 @@
+from loguru import logger
+import traceback
+import niquests as requests
+from datetime import datetime, timezone
+from dataclasses import dataclass
+from typing import Optional
+from utils.xml import get_xml_value
+from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
+from functools import wraps
+import xml.etree.ElementTree as ET
+from utils.xml import text, NS
+
+
+from datastructures.capabilities import Capabilities, parse_capabilities_response
+from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
+        parse_profiles_response, parse_video_encoder_configuration_options_response, \
+        parse_audio_encoder_configuration_options_response
+from datastructures.network import NetworkInterface, DNSInformation, HostnameInformation, \
+        parse_network_interfaces_response, parse_dns_response, parse_hostname_response
+from datastructures.imaging import ImagingSettings, ImagingOptions, \
+        parse_imaging_settings_response, parse_imaging_options_response
+from datastructures.datetime import SystemDateAndTime,  NTPInformation, NetworkHost, \
+        parse_system_date_and_time_response, parse_ntp_response
+
+class AuthorizationError(Exception):
+    pass
+
+@dataclass
+class DeviceInformation:
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    firmware_version: Optional[str] = None
+    serial_number: Optional[str] = None
+    hardware_id: Optional[str] = None
+
+@dataclass
+class Camera:
+    xaddr: Optional[str] = None
+    name: Optional[str] = None
+    device_information: Optional[str] = None
+    serial_number: Optional[str] = None
+    ip_address: Optional[str] = None
+    time_offset: Optional[int] = 0
+    username: Optional[str] = None
+    password: Optional[str] = None
+    capabilities: Optional[Capabilities] = None
+    profiles: list[Profile] = None
+    network_interfaces: list[NetworkInterface] = None
+    network_gateway: Optional[str] = None
+    dns: Optional[DNSInformation] = None
+    ntp: Optional[NTPInformation] = None
+    hostname: Optional[HostnameInformation] = None
+
+def safe_run(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {e}")
+            return None
+    return wrapper
+
+# this camera query does not require authorization, so it has a different design pattern than those that do
+# it also returns the SystemDateTime object directly rather than setting it on the camera 
+@safe_run
+def get_system_date_and_time(url: str) -> SystemDateAndTime:
+    soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+    fault = parse_soap_fault(response.text)
+    if fault:
+        raise ValueError(str(fault))
+    response.raise_for_status()
+    return parse_system_date_and_time_response(response.text)
+
+def get_time_offset(camera: Camera) -> None:
+    time_offset = 0
+    if sdt := get_system_date_and_time(camera.xaddr):
+        camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
+            sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
+        computer_utc = datetime.now(timezone.utc)
+        time_offset = int((camera_utc - computer_utc).total_seconds())
+    camera.time_offset = time_offset
+
+# these two queries come first in camera data population and will trigger authorization execptions if the credentials are not correct
+# some cameras may allow get_capabilities without authorization, so both are needed for a proper credential check
+# the @safe_run decorator is not used, the authorization exception is an opportunity to collect credentials from the user
+def get_capabilities(camera: Camera) -> None:
+    body = """<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"""
+    xml = onvif_post(camera.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "capabilities", parse_capabilities_response(xml))
+
+def get_device_information(camera: Camera) -> str:
+    body = """<tds:GetDeviceInformation/>"""
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "device_information", parse_device_information_response(xml))
+#######################################################################################################################################
+
+@safe_run
+def get_profiles(camera: Camera) -> str:
+    body = "<trt:GetProfiles/>"
+    xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "profiles", parse_profiles_response(xml))
+
+@safe_run
+def get_stream_uri(camera: Camera, profile: Profile) -> None:
+    body = f"""<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream><tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport></trt:StreamSetup><trt:ProfileToken>{profile.token}</trt:ProfileToken></trt:GetStreamUri>"""
+    xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "stream_uri", get_xml_value(xml, "//s:Body//trt:GetStreamUriResponse//trt:MediaUri//tt:Uri"))
+
+@safe_run
+def get_snapshot_uri(camera: Camera, profile: Profile) -> None:
+    body = f"""<trt:GetSnapshotUri><trt:ProfileToken>{profile.token}</trt:ProfileToken></trt:GetSnapshotUri>"""
+    xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "snapshot_uri", get_xml_value(xml, "//s:Body//trt:GetSnapshotUriResponse//trt:MediaUri//tt:Uri"))
+
+@safe_run
+def get_video_encoder_configuration_options(camera: Camera, profile: Profile) -> None:
+    body = f"""<trt:GetVideoEncoderConfigurationOptions><trt:ConfigurationToken>{profile.video_encoder.token}</trt:ConfigurationToken><trt:ProfileToken>{profile.token}</trt:ProfileToken></trt:GetVideoEncoderConfigurationOptions>"""
+    xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "video_encoder_options", parse_video_encoder_configuration_options_response(xml))
+
+@safe_run
+def get_audio_encoder_configuration_options(camera: Camera, profile: Profile) -> None:
+    body = f"""<trt:GetAudioEncoderConfigurationOptions><trt:ProfileToken>{profile.token}</trt:ProfileToken></trt:GetAudioEncoderConfigurationOptions>"""
+    xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "audio_encoder_options", parse_audio_encoder_configuration_options_response(xml))
+
+@safe_run
+def get_network_interfaces(camera: Camera) -> None:
+    body = "<tds:GetNetworkInterfaces/>"
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera,  "network_interfaces", parse_network_interfaces_response(xml))
+
+@safe_run
+def get_hostname(camera: Camera) -> None:
+    body = "<tds:GetHostname/>"
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "hostname", parse_hostname_response(xml))
+
+@safe_run
+def get_network_default_gateway(camera: Camera) -> str:
+    body = f"""<tds:GetNetworkDefaultGateway/>"""
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "network_gateway", get_xml_value(xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address"))
+
+@safe_run
+def get_dns(camera: Camera) -> None:
+    body = f"""<tds:GetDNS/>"""
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "dns", parse_dns_response(xml))
+
+@safe_run
+def get_ntp(camera: Camera) -> None:
+    body = f"""<tds:GetNTP/>"""
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "npt", parse_ntp_response(xml))
+
+@safe_run
+def get_imaging_settings(camera: Camera, profile: Profile) -> None:
+    body = f"""<timg:GetImagingSettings><timg:VideoSourceToken>{profile.video_source.source_token}</timg:VideoSourceToken></timg:GetImagingSettings>"""
+    xml = onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "imaging_settings", parse_imaging_settings_response(xml))
+
+@safe_run
+def get_imaging_options(camera: Camera, profile: Profile) -> None:
+    body = f"""<timg:GetOptions><timg:VideoSourceToken>{profile.video_source.source_token}</timg:VideoSourceToken></timg:GetOptions>"""
+    xml = onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(profile, "imaging_options", parse_imaging_options_response(xml))
+
+def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
+    body = f"""
+<tds:SetSystemDateAndTime>
+    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
+    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
+    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
+    <tds:UTCDateTime>
+        <tt:Time>
+            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
+            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
+            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
+        </tt:Time>
+        <tt:Date>
+            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
+            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
+            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
+        </tt:Date>
+    </tds:UTCDateTime>
+</tds:SetSystemDateAndTime>""".strip()
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> str:
+    manual_settings = ""
+    if not ntp.from_dhcp:
+        arg = ""
+        manual = ntp.ntp_manual[0]
+        match manual.type:
+            case 'IPv4':
+                address = manual.ipv4 if manual.ipv4 else ""
+                arg = f"<tt:IPv4Address>{address}</tt:IPv4Address>"
+            case 'IPv6':
+                address = manual.ipv6 if manual.ipv6 else ""
+                arg = f"<tt:IPv6Address>{address}</tt:IPv6Address>"
+            case 'DNS':
+                address = manual.dns if manual.dns else ""
+                arg = f"<tt:DNSname>{address}</tt:DNSname>"
+
+        manual_settings = f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
+
+    body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+    return onvif_post(url, body, username, password, time_offset)
+
+def set_video_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: VideoEncoderConfiguration) -> str:
+    multicast_addr = ""
+    if encoder.multicast.address_type == "IPv4":
+        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
+    elif encoder.multicast.address_type == "IPv6":
+        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+
+    h264 = ""
+    if encoder.encoding == "H264":
+        h264 = f"""
+        <tt:H264>
+            <tt:GovLength>{encoder.gov_length}</tt:GovLength>
+            <tt:H264Profile>{encoder.profile}</tt:H264Profile>
+        </tt:H264>"""
+
+    body = f"""
+<trt:SetVideoEncoderConfiguration>
+    <trt:Configuration token="{encoder.token}">
+        <tt:Name>{encoder.name}</tt:Name>
+        <tt:UseCount>{encoder.use_count}</tt:UseCount>
+        <tt:Encoding>{encoder.encoding}</tt:Encoding>
+        <tt:Resolution>
+            <tt:Width>{encoder.resolution.width}</tt:Width>
+            <tt:Height>{encoder.resolution.height}</tt:Height>
+        </tt:Resolution>
+        <tt:Quality>{encoder.quality}</tt:Quality>
+        <tt:RateControl>
+            <tt:FrameRateLimit>{encoder.rate_control.frame_rate_limit}</tt:FrameRateLimit>
+            <tt:EncodingInterval>{encoder.rate_control.encoding_interval}</tt:EncodingInterval>
+            <tt:BitrateLimit>{encoder.rate_control.bitrate_limit}</tt:BitrateLimit>
+        </tt:RateControl>{h264}
+        <tt:Multicast>
+            <tt:Address>
+                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
+            </tt:Address>
+            <tt:Port>{encoder.multicast.port}</tt:Port>
+            <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
+            <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>
+        </tt:Multicast>
+        <tt:SessionTimeout>{encoder.session_timeout}</tt:SessionTimeout>
+    </trt:Configuration>
+    <trt:ForcePersistence>true</trt:ForcePersistence>
+</trt:SetVideoEncoderConfiguration>""".strip()
+
+    return onvif_post(url, body, username, password, time_offset)
+
+def set_audio_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: AudioEncoderConfiguration) -> str:
+    multicast_addr = ""
+    if encoder.multicast.address_type == "IPv4":
+        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
+    elif encoder.multicast.address_type == "IPv6":
+        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+
+    body = f"""
+<trt:SetAudioEncoderConfiguration>
+    <trt:Configuration token="{encoder.token}">
+        <tt:Name>{encoder.name}</tt:Name>
+        <tt:UseCount>{encoder.use_count}</tt:UseCount>
+        <tt:Encoding>{encoder.encoding}</tt:Encoding>
+        <tt:Bitrate>{encoder.bitrate}</tt:Bitrate>
+        <tt:SampleRate>{encoder.sample_rate}</tt:SampleRate>
+        <tt:Multicast>
+            <tt:Address>
+                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
+            </tt:Address>
+            <tt:Port>{encoder.multicast.port}</tt:Port>
+            <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
+            <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>
+        </tt:Multicast>
+        <tt:SessionTimeout>{encoder.session_timeout}</tt:SessionTimeout>
+    </trt:Configuration>
+    <trt:ForcePersistence>true</trt:ForcePersistence>
+</trt:SetAudioEncoderConfiguration>""".strip()
+
+    return onvif_post(url, body, username, password, time_offset)
+    
+def set_imaging_settings(url: str, username: str, password: str, time_offset: int, video_source_token: str, imaging: ImagingSettings) -> str:
+    body = f"""
+<timg:SetImagingSettings>
+    <timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken>
+    <timg:ImagingSettings>
+        <tt:Brightness>{int(imaging.brightness)}</tt:Brightness>
+        <tt:ColorSaturation>{int(imaging.color_saturation)}</tt:ColorSaturation>
+        <tt:Contrast>{int(imaging.contrast)}</tt:Contrast>
+        <tt:Sharpness>{int(imaging.sharpness)}</tt:Sharpness>
+    </timg:ImagingSettings>
+</timg:SetImagingSettings>""".strip()
+
+    return onvif_post(url, body, username, password, time_offset)
+
+def parse_device_information_response(xml: str) -> DeviceInformation:
+    root = ET.fromstring(xml)
+
+    elem = root.find(
+        ".//tds:GetDeviceInformationResponse",
+        NS,
+    )
+    if elem is None:
+        raise ValueError(
+            "Could not find tds:GetDeviceInformation"
+        )
+
+    return DeviceInformation(
+        manufacturer=text(elem, "tds:Manufacturer"),
+        model=text(elem, "tds:Model"),
+        firmware_version=text(elem, "tds:FirmwareVersion"),
+        serial_number=text(elem, "tds:SerialNumber"),
+        hardware_id=text(elem, "tds:HardwareId"),
+    )
+
+def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
+    camera = Camera(username=username, password=password, xaddr=xaddr, name=name)
+    get_time_offset(camera)
+
+    try:
+        # These are the first camera queries that (may) require authorization, trap the error for user interface, don't use @safe_run
+        get_capabilities(camera)
+        get_device_information(camera)
+    except Exception as ex:
+        logger.error(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
+        logger.debug(traceback.format_exc())
+        if "notauthorized" in str(ex).lower():
+            raise AuthorizationError("Not Authorized")
+        raise ex
+    
+    get_network_interfaces(camera)
+    get_network_default_gateway(camera)
+    get_hostname(camera)
+    get_dns(camera)
+    get_ntp(camera)
+    get_profiles(camera)
+    for profile in camera.profiles:
+        get_stream_uri(camera, profile)
+        get_snapshot_uri(camera, profile)
+        get_video_encoder_configuration_options(camera, profile)
+        if profile.audio_encoder:
+            get_audio_encoder_configuration_options(camera, profile)
+        if camera.capabilities.imaging:    
+            get_imaging_settings(camera, profile)
+            get_imaging_options(camera, profile)
+            
+    return camera
+ 

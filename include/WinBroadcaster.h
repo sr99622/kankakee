@@ -36,7 +36,6 @@
 
 
 namespace kankakee
-
 {
 
 class Broadcaster

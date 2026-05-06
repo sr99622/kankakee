@@ -4,13 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
-
-@dataclass
-class Bounds:
-    x: Optional[int] = None
-    y: Optional[int] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+from .imaging import ImagingOptions, ImagingSettings, Bounds
 
 @dataclass
 class VideoSourceConfiguration:

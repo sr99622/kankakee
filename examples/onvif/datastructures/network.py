@@ -5,13 +5,10 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, NS
 
-'''
 @dataclass
-class NTPInformation:
+class HostnameInformation:
     from_dhcp: Optional[bool] = None
-    ntp_from_dhcp: list[str] = field(default_factory=list)
-    ntp_manual: list[str] = field(default_factory=list)
-'''
+    name: Optional[str] = None
 
 @dataclass
 class DNSInformation:
@@ -258,34 +255,19 @@ def parse_dns_response(xml: str) -> DNSInformation:
         ],
     )
 
-'''
-def parse_ntp_response(xml: str) -> NTPInformation:
+def parse_hostname_response(xml: str) -> HostnameInformation:
     root = ET.fromstring(xml)
 
-    ntp_elem = root.find(
-        ".//tds:GetNTPResponse/tds:NTPInformation",
+    elem = root.find(
+        ".//tds:GetHostnameResponse/tds:HostnameInformation",
         NS,
     )
-    if ntp_elem is None:
-        raise ValueError("Could not find tds:GetNTPResponse/tds:NTPInformation")
+    if elem is None:
+        raise ValueError(
+            "Could not find tds:GetHostnameResponse/tds:HostnameInformation"
+        )
 
-    return NTPInformation(
-        from_dhcp=bool_text(ntp_elem, "tt:FromDHCP"),
-        ntp_from_dhcp=[
-            addr
-            for addr in (
-                parse_ip_address(elem)
-                for elem in ntp_elem.findall("tt:NTPFromDHCP", NS)
-            )
-            if addr is not None
-        ],
-        ntp_manual=[
-            addr
-            for addr in (
-                parse_ip_address(elem)
-                for elem in ntp_elem.findall("tt:NTPManual", NS)
-            )
-            if addr is not None
-        ],
+    return HostnameInformation(
+        from_dhcp=bool_text(elem, "tt:FromDHCP"),
+        name=text(elem, "tt:Name"),
     )
-'''

@@ -6,16 +6,21 @@ import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, float_text, NS
 
 @dataclass
+class Bounds:
+    x: Optional[int] = None
+    y: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+@dataclass
 class FloatRange:
     min: Optional[float] = None
     max: Optional[float] = None
-
 
 @dataclass
 class BacklightCompensation:
     mode: Optional[str] = None
     level: Optional[float] = None
-
 
 @dataclass
 class Exposure:
@@ -32,7 +37,6 @@ class Exposure:
     gain: Optional[float] = None
     iris: Optional[float] = None
 
-
 @dataclass
 class Focus:
     auto_focus_mode: Optional[str] = None
@@ -40,19 +44,16 @@ class Focus:
     near_limit: Optional[float] = None
     far_limit: Optional[float] = None
 
-
 @dataclass
 class WideDynamicRange:
     mode: Optional[str] = None
     level: Optional[float] = None
-
 
 @dataclass
 class WhiteBalance:
     mode: Optional[str] = None
     cr_gain: Optional[float] = None
     cb_gain: Optional[float] = None
-
 
 @dataclass
 class ImagingSettings:
@@ -80,12 +81,10 @@ class ImagingOptions:
     wide_dynamic_range: Optional[WideDynamicRangeOptions] = None
     white_balance: Optional[WhiteBalanceOptions] = None
 
-
 @dataclass
 class BacklightCompensationOptions:
     modes: list[str] = field(default_factory=list)
     level: Optional[FloatRange] = None
-
 
 @dataclass
 class ExposureOptions:
@@ -101,7 +100,6 @@ class ExposureOptions:
     gain: Optional[FloatRange] = None
     iris: Optional[FloatRange] = None
 
-
 @dataclass
 class FocusOptions:
     auto_focus_modes: list[str] = field(default_factory=list)
@@ -109,12 +107,10 @@ class FocusOptions:
     near_limit: Optional[FloatRange] = None
     far_limit: Optional[FloatRange] = None
 
-
 @dataclass
 class WideDynamicRangeOptions:
     modes: list[str] = field(default_factory=list)
     level: Optional[FloatRange] = None
-
 
 @dataclass
 class WhiteBalanceOptions:
@@ -133,7 +129,6 @@ def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
         height=int(attr(elem, "height")) if attr(elem, "height") else None,
     )
 
-
 def parse_backlight_compensation(
     elem: Optional[ET.Element],
 ) -> Optional[BacklightCompensation]:
@@ -144,7 +139,6 @@ def parse_backlight_compensation(
         mode=text(elem, "tt:Mode"),
         level=float_text(elem, "tt:Level"),
     )
-
 
 def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
     if elem is None:
@@ -165,7 +159,6 @@ def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
         iris=float_text(elem, "tt:Iris"),
     )
 
-
 def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
     if elem is None:
         return None
@@ -177,7 +170,6 @@ def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
         far_limit=float_text(elem, "tt:FarLimit"),
     )
 
-
 def parse_wide_dynamic_range(
     elem: Optional[ET.Element],
 ) -> Optional[WideDynamicRange]:
@@ -188,7 +180,6 @@ def parse_wide_dynamic_range(
         mode=text(elem, "tt:Mode"),
         level=float_text(elem, "tt:Level"),
     )
-
 
 def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
     if elem is None:
@@ -211,7 +202,6 @@ def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
         height=int(attr(elem, "height")) if attr(elem, "height") else None,
     )
 
-
 def parse_backlight_compensation(
     elem: Optional[ET.Element],
 ) -> Optional[BacklightCompensation]:
@@ -222,7 +212,6 @@ def parse_backlight_compensation(
         mode=text(elem, "tt:Mode"),
         level=float_text(elem, "tt:Level"),
     )
-
 
 def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
     if elem is None:
@@ -243,7 +232,6 @@ def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
         iris=float_text(elem, "tt:Iris"),
     )
 
-
 def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
     if elem is None:
         return None
@@ -255,7 +243,6 @@ def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
         far_limit=float_text(elem, "tt:FarLimit"),
     )
 
-
 def parse_wide_dynamic_range(
     elem: Optional[ET.Element],
 ) -> Optional[WideDynamicRange]:
@@ -266,7 +253,6 @@ def parse_wide_dynamic_range(
         mode=text(elem, "tt:Mode"),
         level=float_text(elem, "tt:Level"),
     )
-
 
 def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
     if elem is None:
@@ -316,14 +302,12 @@ def parse_float_range(elem: Optional[ET.Element]) -> Optional[FloatRange]:
         max=float_text(elem, "tt:Max"),
     )
 
-
 def text_list(elem: ET.Element, path: str) -> list[str]:
     return [
         e.text.strip()
         for e in elem.findall(path, NS)
         if e.text
     ]
-
 
 def parse_backlight_compensation_options(
     elem: Optional[ET.Element],
@@ -335,7 +319,6 @@ def parse_backlight_compensation_options(
         modes=text_list(elem, "tt:Mode"),
         level=parse_float_range(elem.find("tt:Level", NS)),
     )
-
 
 def parse_exposure_options(elem: Optional[ET.Element]) -> Optional[ExposureOptions]:
     if elem is None:
@@ -355,7 +338,6 @@ def parse_exposure_options(elem: Optional[ET.Element]) -> Optional[ExposureOptio
         iris=parse_float_range(elem.find("tt:Iris", NS)),
     )
 
-
 def parse_focus_options(elem: Optional[ET.Element]) -> Optional[FocusOptions]:
     if elem is None:
         return None
@@ -367,7 +349,6 @@ def parse_focus_options(elem: Optional[ET.Element]) -> Optional[FocusOptions]:
         far_limit=parse_float_range(elem.find("tt:FarLimit", NS)),
     )
 
-
 def parse_wide_dynamic_range_options(
     elem: Optional[ET.Element],
 ) -> Optional[WideDynamicRangeOptions]:
@@ -378,7 +359,6 @@ def parse_wide_dynamic_range_options(
         modes=text_list(elem, "tt:Mode"),
         level=parse_float_range(elem.find("tt:Level", NS)),
     )
-
 
 def parse_white_balance_options(
     elem: Optional[ET.Element],
