@@ -1,8 +1,7 @@
 from loguru import logger
 import traceback
 import uuid
-from urllib.parse import unquote_plus, urlparse
-import ipaddress
+from urllib.parse import unquote_plus
 from utils.xml import get_xml_value
 from kankakee import Adapter, NetUtil, Broadcaster
 from functools import wraps
@@ -19,14 +18,6 @@ def safe_run(func):
             logger.error(f"Error in {func.__name__}: {e}")
             return None
     return wrapper
-
-def check_ip_in_subnet(ip_to_check: str, network_ip: str, netmask: int) -> bool:
-    try:
-        network = ipaddress.IPv4Network(f"{network_ip}/{netmask}", strict=False)
-        address = ipaddress.IPv4Address(ip_to_check)
-        return address in network
-    except ValueError:
-        return False
 
 def get_camera_name(xml_data: str) -> str:
     scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
@@ -104,10 +95,6 @@ if __name__ == "__main__":
                             duplicate = True
                             break
                     if duplicate:
-                        continue
-
-                    host = urlparse(xaddr).hostname
-                    if not check_ip_in_subnet(host, adapter.ip_address, adapter.netmask):
                         continue
 
                     camera_jobs.append((xaddr, name))
