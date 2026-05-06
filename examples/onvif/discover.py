@@ -1,7 +1,7 @@
 from loguru import logger
 import traceback
 import uuid
-from urllib.parse import unquote_plus
+from urllib.parse import unquote_plus, urlparse
 from utils.xml import get_xml_value
 from kankakee import Adapter, NetUtil, Broadcaster
 from functools import wraps
@@ -78,9 +78,6 @@ if __name__ == "__main__":
             if adapter.type.lower() == "loopback":
                 continue
 
-            print("ADAPTER IP:", adapter.ip_address)
-            print("ADAPTER TYPE:", adapter.type)
-
             results = discover(adapter, msg_id)
             for result in results:
                 if not str(msg_id) in get_xml_value(result, "//s:Header//a:RelatesTo"):
@@ -95,6 +92,9 @@ if __name__ == "__main__":
                             duplicate = True
                             break
                     if duplicate:
+                        continue
+
+                    if urlparse(xaddr).hostname.startswith("169.254"):
                         continue
 
                     camera_jobs.append((xaddr, name))
