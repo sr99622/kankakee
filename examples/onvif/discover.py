@@ -9,16 +9,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from devices.camera import Camera, get_camera, get_system_date_and_time, set_system_date_and_time
 
-def safe_run(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in {func.__name__}: {e}")
-            return None
-    return wrapper
-
 def get_camera_name(xml_data: str) -> str:
     scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
     name_id = "onvif://www.onvif.org/name/"
