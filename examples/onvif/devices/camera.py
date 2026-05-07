@@ -1,7 +1,7 @@
 from loguru import logger
 import traceback
 import niquests as requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Optional
 from utils.xml import get_xml_value
@@ -19,7 +19,7 @@ from datastructures.network import NetworkInterface, DNSInformation, HostnameInf
         parse_network_interfaces_response, parse_dns_response, parse_hostname_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
-from datastructures.datetime import SystemDateAndTime,  NTPInformation, NetworkHost, \
+from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, NetworkHost, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
 
 class AuthorizationError(Exception):
@@ -58,12 +58,14 @@ def safe_run(func):
             return func(*args, **kwargs)
         except Exception as e:
             logger.error(f"Error in {func.__name__}: {e}")
+            logger.debug(traceback.format_exc())
             return None
     return wrapper
 
-# this camera query does not require authorization, so it has a different design pattern than those that do
+# DATE AND TIME FUNCTIONS
+#
+# this camera query does not require authorization, so it has a different design pattern
 # it also returns the SystemDateTime object directly rather than setting it on the camera 
-@safe_run
 def get_system_date_and_time(url: str) -> SystemDateAndTime:
     soap = """<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl"><SOAP-ENV:Body><tds:GetSystemDateAndTime/></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
     response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
@@ -74,13 +76,90 @@ def get_system_date_and_time(url: str) -> SystemDateAndTime:
     return parse_system_date_and_time_response(response.text)
 
 def get_time_offset(camera: Camera) -> None:
-    time_offset = 0
-    if sdt := get_system_date_and_time(camera.xaddr):
-        camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
-            sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
-        computer_utc = datetime.now(timezone.utc)
-        time_offset = int((camera_utc - computer_utc).total_seconds())
-    camera.time_offset = time_offset
+    sdt = get_system_date_and_time(camera.xaddr)
+    camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
+        sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
+    computer_utc = datetime.now(timezone.utc)
+    camera.time_offset = int((camera_utc - computer_utc).total_seconds())
+
+def get_posix_timezone():
+    local_time = datetime.now().astimezone()
+    offset_str = local_time.strftime('%z')
+
+    # most cameras use a version of POSIX timezone which is different than python timezone (+/-)
+    sign = '-' if offset_str[0] == '+' else '+'
+    
+    hours = offset_str[1:3]
+    minutes = offset_str[3:5]
+    posix_format = f"UTC{sign}{hours}:{minutes}"   
+    return posix_format
+
+# this will work as the argument for set_system_date_and_time for most cameras, but some may not implement properly, 
+# so you will need an override than can be user set which usually means timezone and/or DST adjustment for non-compliant cameras
+def get_local_date_and_time() -> SystemDateAndTime:
+    local_time = datetime.now().astimezone()
+    utc_time = local_time.astimezone(timezone.utc)
+    return SystemDateAndTime(
+        date_time_type="Manual",
+        daylight_savings=bool(local_time.dst()),
+        time_zone=TimeZone(tz=get_posix_timezone()),
+        local_date_time=DateTime(
+            date=Date(year=local_time.year, month=local_time.month, day=local_time.day),
+            time=Time(hour=local_time.hour, minute=local_time.minute, second=local_time.second)
+        ),
+        utc_date_time=DateTime(
+            date=Date(year=utc_time.year, month=utc_time.month, day=utc_time.day),
+            time=Time(hour=utc_time.hour, minute=utc_time.minute, second=utc_time.second)
+        )
+    )
+
+def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
+    body = f"""
+<tds:SetSystemDateAndTime>
+    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
+    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
+    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
+    <tds:UTCDateTime>
+        <tt:Time>
+            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
+            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
+            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
+        </tt:Time>
+        <tt:Date>
+            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
+            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
+            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
+        </tt:Date>
+    </tds:UTCDateTime>
+</tds:SetSystemDateAndTime>""".strip()
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+# when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
+# then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
+# manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
+def set_ntp(camera: Camera, ntp: NTPInformation) -> None:
+    manual_settings = ""
+    if not ntp.from_dhcp:
+        arg = ""
+        manual_settings = ""
+        for manual in ntp.ntp_manual:
+            match manual.type:
+                case 'IPv4':
+                    address = manual.ipv4 if manual.ipv4 else ""
+                    arg = f"<tt:IPv4Address>{address}</tt:IPv4Address>"
+                case 'IPv6':
+                    address = manual.ipv6 if manual.ipv6 else ""
+                    arg = f"<tt:IPv6Address>{address}</tt:IPv6Address>"
+                case 'DNS':
+                    address = manual.dns if manual.dns else ""
+                    arg = f"<tt:DNSname>{address}</tt:DNSname>"
+
+            manual_settings += f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
+
+    body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+    onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+############################################################################################################
+
 
 # these two queries come first in camera data population and will trigger authorization execptions if the credentials are not correct
 # some cameras may allow get_capabilities without authorization, so both are needed for a proper credential check
@@ -154,7 +233,7 @@ def get_dns(camera: Camera) -> None:
 def get_ntp(camera: Camera) -> None:
     body = f"""<tds:GetNTP/>"""
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-    setattr(camera, "npt", parse_ntp_response(xml))
+    setattr(camera, "ntp", parse_ntp_response(xml))
 
 @safe_run
 def get_imaging_settings(camera: Camera, profile: Profile) -> None:
@@ -167,48 +246,6 @@ def get_imaging_options(camera: Camera, profile: Profile) -> None:
     body = f"""<timg:GetOptions><timg:VideoSourceToken>{profile.video_source.source_token}</timg:VideoSourceToken></timg:GetOptions>"""
     xml = onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(profile, "imaging_options", parse_imaging_options_response(xml))
-
-def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
-    body = f"""
-<tds:SetSystemDateAndTime>
-    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
-    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
-    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
-    <tds:UTCDateTime>
-        <tt:Time>
-            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
-            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
-            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
-        </tt:Time>
-        <tt:Date>
-            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
-            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
-            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
-        </tt:Date>
-    </tds:UTCDateTime>
-</tds:SetSystemDateAndTime>""".strip()
-    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-
-def set_ntp(url:str, username: str, password: str, time_offset: int, ntp: NTPInformation) -> str:
-    manual_settings = ""
-    if not ntp.from_dhcp:
-        arg = ""
-        manual = ntp.ntp_manual[0]
-        match manual.type:
-            case 'IPv4':
-                address = manual.ipv4 if manual.ipv4 else ""
-                arg = f"<tt:IPv4Address>{address}</tt:IPv4Address>"
-            case 'IPv6':
-                address = manual.ipv6 if manual.ipv6 else ""
-                arg = f"<tt:IPv6Address>{address}</tt:IPv6Address>"
-            case 'DNS':
-                address = manual.dns if manual.dns else ""
-                arg = f"<tt:DNSname>{address}</tt:DNSname>"
-
-        manual_settings = f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
-
-    body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
-    return onvif_post(url, body, username, password, time_offset)
 
 def set_video_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: VideoEncoderConfiguration) -> str:
     multicast_addr = ""

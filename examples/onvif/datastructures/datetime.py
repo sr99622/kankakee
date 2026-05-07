@@ -121,6 +121,7 @@ def parse_ip_address(elem):
     )
 
 def parse_ntp_response(xml: str) -> NTPInformation:
+    #print(xml)
     root = ET.fromstring(xml)
 
     ntp_elem = root.find(".//tds:NTPInformation", NS)

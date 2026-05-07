@@ -1,13 +1,15 @@
 from loguru import logger
 import traceback
 import uuid
+import ipaddress
 from urllib.parse import unquote_plus, urlparse
 from utils.xml import get_xml_value
 from kankakee import Adapter, NetUtil, Broadcaster
-from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from devices.camera import Camera, get_camera, get_system_date_and_time, set_system_date_and_time
+from datastructures.datetime import NetworkHost, NTPInformation
+from devices.camera import Camera, get_camera, get_system_date_and_time, set_system_date_and_time, \
+        get_local_date_and_time, set_ntp
 
 def get_camera_name(xml_data: str) -> str:
     scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
@@ -29,6 +31,24 @@ def get_camera_name(xml_data: str) -> str:
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
     print("*", camera.name, camera.xaddr)
+    sdt = get_system_date_and_time(camera.xaddr)
+    print(f"SYSTEM DATE AND TIME: {sdt}")
+    #set_system_date_and_time(camera, sdt)
+    #local_sdt = get_local_date_and_time()
+    #print(f"LOCAL DATE AND TIME: {local_sdt}")
+    #set_system_date_and_time(camera, local_sdt)
+    try:
+        ntp_servers=[NetworkHost(type="IPv4", ipv4="129.6.15.28"), NetworkHost(type="IPv4", ipv4="132.163.96.4")]
+        print(f"NTP: {camera.ntp}")
+        #ntp_information = NTPInformation(from_dhcp=False, ntp_manual=ntp_servers)
+        #set_ntp(camera, ntp_information)
+        #local_sdt = get_local_date_and_time()
+        #local_sdt.date_time_type = 'NTP'
+        #set_system_date_and_time(camera, local_sdt)
+    except Exception as ex:
+        logger.error(f"NTP FAILURE: {ex}")
+
+    '''
     if camera.profiles:
         for profile in camera.profiles:
             print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
@@ -39,6 +59,7 @@ def camera_filled(camera: Camera) -> None:
         print(f"INTERFACE: {interface.enabled} {interface.info.name} {interface.info.hw_address} {interface.info.mtu}")
         print(f"ADDRESS: {interface.ipv4.from_dhcp.address} / {interface.ipv4.from_dhcp.prefix_length}")
         print(f"DHCP ENABLED: {interface.ipv4.dhcp}")
+    '''
 
 def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
     output = []
@@ -84,7 +105,10 @@ if __name__ == "__main__":
                     if duplicate:
                         continue
 
-                    if urlparse(xaddr).hostname.startswith("169.254"):
+                    ip_obj = ipaddress.ip_address(urlparse(xaddr).hostname)
+                    if ip_obj.version == 6:
+                        continue
+                    if ip_obj.is_link_local:
                         continue
 
                     camera_jobs.append((xaddr, name))
