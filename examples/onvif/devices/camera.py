@@ -1,6 +1,7 @@
 from loguru import logger
 import traceback
 import niquests as requests
+import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Optional
@@ -82,34 +83,29 @@ def get_time_offset(camera: Camera) -> None:
     computer_utc = datetime.now(timezone.utc)
     camera.time_offset = int((camera_utc - computer_utc).total_seconds())
 
-def get_posix_timezone():
-    local_time = datetime.now().astimezone()
-    offset_str = local_time.strftime('%z')
+# this will work as the argument for set_system_date_and_time for most cameras, but some may not implement DST properly, 
+# so the safest option is to ignore DST. It was observed that Hikvision cameras may need a reboot for updating time protocol
+def get_local_date_and_time(ignore_dst: bool = True) -> SystemDateAndTime:
 
-    # most cameras use a version of POSIX timezone which is different than python timezone (+/-)
-    sign = '-' if offset_str[0] == '+' else '+'
-    
-    hours = offset_str[1:3]
-    minutes = offset_str[3:5]
-    posix_format = f"UTC{sign}{hours}:{minutes}"   
-    return posix_format
+    local_time = time.localtime()
+    utc_time = time.gmtime()
+    is_dst = False if ignore_dst else local_time.tm_isdst > 0
+    offset = -local_time.tm_gmtoff if ignore_dst else time.timezone
+    offset_hours = offset // 3600
+    offset_minutes = (offset % 3600) // 60
+    timezone = f"UTC{offset_hours:+03d}:{offset_minutes:02d}"
 
-# this will work as the argument for set_system_date_and_time for most cameras, but some may not implement properly, 
-# so you will need an override than can be user set which usually means timezone and/or DST adjustment for non-compliant cameras
-def get_local_date_and_time() -> SystemDateAndTime:
-    local_time = datetime.now().astimezone()
-    utc_time = local_time.astimezone(timezone.utc)
     return SystemDateAndTime(
         date_time_type="Manual",
-        daylight_savings=bool(local_time.dst()),
-        time_zone=TimeZone(tz=get_posix_timezone()),
+        daylight_savings=is_dst,
+        time_zone=TimeZone(timezone),
         local_date_time=DateTime(
-            date=Date(year=local_time.year, month=local_time.month, day=local_time.day),
-            time=Time(hour=local_time.hour, minute=local_time.minute, second=local_time.second)
+            date=Date(year=local_time.tm_year, month=local_time.tm_mon, day=local_time.tm_mday),
+            time=Time(hour=local_time.tm_hour, minute=local_time.tm_min, second=local_time.tm_sec)
         ),
         utc_date_time=DateTime(
-            date=Date(year=utc_time.year, month=utc_time.month, day=utc_time.day),
-            time=Time(hour=utc_time.hour, minute=utc_time.minute, second=utc_time.second)
+            date=Date(year=utc_time.tm_year, month=utc_time.tm_mon, day=utc_time.tm_mday),
+            time=Time(hour=utc_time.tm_hour, minute=utc_time.tm_min, second=utc_time.tm_sec)
         )
     )
 

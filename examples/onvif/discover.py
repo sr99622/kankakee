@@ -31,6 +31,8 @@ def get_camera_name(xml_data: str) -> str:
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
     print("*", camera.name, camera.xaddr)
+    
+    '''
     sdt = get_system_date_and_time(camera.xaddr)
     print(f"SYSTEM DATE AND TIME: {sdt}")
     #set_system_date_and_time(camera, sdt)
@@ -40,13 +42,15 @@ def camera_filled(camera: Camera) -> None:
     try:
         ntp_servers=[NetworkHost(type="IPv4", ipv4="129.6.15.28"), NetworkHost(type="IPv4", ipv4="132.163.96.4")]
         print(f"NTP: {camera.ntp}")
-        #ntp_information = NTPInformation(from_dhcp=False, ntp_manual=ntp_servers)
-        #set_ntp(camera, ntp_information)
-        #local_sdt = get_local_date_and_time()
-        #local_sdt.date_time_type = 'NTP'
-        #set_system_date_and_time(camera, local_sdt)
+        ntp_information = NTPInformation(from_dhcp=False, ntp_manual=ntp_servers)
+        set_ntp(camera, ntp_information)
+        local_sdt = get_local_date_and_time()
+        print(f"LOCAL SDT: {local_sdt}")
+        local_sdt.date_time_type = 'NTP'
+        set_system_date_and_time(camera, local_sdt)
     except Exception as ex:
         logger.error(f"NTP FAILURE: {ex}")
+    '''
 
     '''
     if camera.profiles:
@@ -54,12 +58,12 @@ def camera_filled(camera: Camera) -> None:
             print(profile.token, profile.video_encoder.resolution.width, profile.video_encoder.gov_length)
             print(profile.stream_uri)
             print(profile.snapshot_uri)
+    '''
 
     for interface in camera.network_interfaces:
         print(f"INTERFACE: {interface.enabled} {interface.info.name} {interface.info.hw_address} {interface.info.mtu}")
         print(f"ADDRESS: {interface.ipv4.from_dhcp.address} / {interface.ipv4.from_dhcp.prefix_length}")
         print(f"DHCP ENABLED: {interface.ipv4.dhcp}")
-    '''
 
 def discover(adapter: Adapter, msg_id: uuid) -> list[str]:
     output = []
