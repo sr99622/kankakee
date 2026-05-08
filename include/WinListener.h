@@ -38,146 +38,146 @@
 #define BUF_SIZE 1024
 
 namespace kankakee
-
 {
 
 class Listener
 {
 public:
-  int sock = -1;
-  bool running = false;
-  struct sockaddr_in servaddr;
-  std::string ip_addr;
-  std::string mult_addr;
-  int port;
-  std::function<void(const std::string&)> errorCallback = nullptr;
-  std::function<void(const std::string&)> listenCallback = nullptr;
+    int sock = -1;
+    bool running = false;
+    struct sockaddr_in servaddr;
+    std::string ip_addr;
+    std::string mult_addr;
+    int port;
+    std::function<void(const std::string&)> errorCallback = nullptr;
+    std::function<void(const std::string&)> listenCallback = nullptr;
 
-  ~Listener() {
-    if (sock > -1) close(sock);
-  }
+    ~Listener() {
+        if (sock > -1) close(sock);
+    }
   
-  Listener(const std::string& ip_addr, const std::string& mult_addr, int port) : 
-      ip_addr(ip_addr), mult_addr(mult_addr), port(port) { 
-    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-      error("creation error", WSAGetLastError());
+    Listener(const std::string& ip_addr, const std::string& mult_addr, int port) : 
+        ip_addr(ip_addr), mult_addr(mult_addr), port(port) { 
+        if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+            error("creation error", WSAGetLastError());
 
-    int reuse = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) < 0)
-      error("reuse error", WSAGetLastError());
+        int reuse = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse)) < 0)
+            error("reuse error", WSAGetLastError());
 
-    u_long flags = 1;
-    if (ioctlsocket(sock, FIONBIO, &flags) == SOCKET_ERROR) 
-      error("server ioctl exception", WSAGetLastError());
+        u_long flags = 1;
+        if (ioctlsocket(sock, FIONBIO, &flags) == SOCKET_ERROR) 
+            error("server ioctl exception", WSAGetLastError());
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(port); 
-    
-    if (bind(sock, (const struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
-      error("bind error", WSAGetLastError()); 
+        memset(&servaddr, 0, sizeof(servaddr));
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_addr.s_addr = INADDR_ANY; 
+        servaddr.sin_port = htons(port); 
 
-    struct ip_mreq group;
-    memset(&group, 0, sizeof(group));
-    group.imr_multiaddr.s_addr = inet_addr(mult_addr.c_str());
-    group.imr_interface.s_addr = inet_addr(ip_addr.c_str());
-    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0)
-      error("add multicast membership error", WSAGetLastError());
-  }
+        if (bind(sock, (const struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
+            error("bind error", WSAGetLastError()); 
 
-  const std::string errorToString(int err) {
-    wchar_t *lpwstr = nullptr;
-    FormatMessage(
-      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-      nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&lpwstr, 0, nullptr
-    );
-    int size = WideCharToMultiByte(CP_UTF8, 0, lpwstr, -1, NULL, 0, NULL, NULL);
-    std::string output(size, 0);
-    WideCharToMultiByte(CP_UTF8, 0, lpwstr, -1, &output[0], size, NULL, NULL);
-    LocalFree(lpwstr);
-    return output;
-  }
+        struct ip_mreq group;
+        memset(&group, 0, sizeof(group));
+        group.imr_multiaddr.s_addr = inet_addr(mult_addr.c_str());
+        group.imr_interface.s_addr = inet_addr(ip_addr.c_str());
 
-  void error(const std::string& msg, int err) {
-    std::stringstream str;
-    str << msg << " : " << errorToString(err);
-    throw std::runtime_error(str.str());
-  }
-
-  void alert(const std::exception& ex) {
-    std::stringstream str;
-    str << "Listener exception: " << ex.what();
-    if (errorCallback) errorCallback(str.str());
-    else std::cout << str.str() << std::endl;
-  }
-
-  void start() {
-    running = true;
-    std::thread thread([&]() { listen(); });
-    thread.detach();
-  }
-
-  void stop() {
-    running = false;
-
-    auto start = std::chrono::steady_clock::now();
-    bool success = false;
-
-    while (true) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      auto end = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds = end - start;
-
-      if (sock < 0) {
-        success = true;
-        break;
-      }
-      if (elapsed_seconds.count() > 5) {
-        success = false;
-        break;
-      }
+        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0)
+            error("add multicast membership error", WSAGetLastError());
     }
 
-    if (!success)
-      error("listener socket close time out error", ETIMEDOUT);
-  }
+    const std::string errorToString(int err) {
+        wchar_t *lpwstr = nullptr;
+        FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&lpwstr, 0, nullptr
+        );
+        int size = WideCharToMultiByte(CP_UTF8, 0, lpwstr, -1, NULL, 0, NULL, NULL);
+        std::string output(size, 0);
+        WideCharToMultiByte(CP_UTF8, 0, lpwstr, -1, &output[0], size, NULL, NULL);
+        LocalFree(lpwstr);
+        return output;
+    }
 
-  void listen() {
-    while (running) {
-      try {
-        struct sockaddr_in addr;
-        socklen_t len = sizeof(addr);
-        memset(&addr, 0, sizeof(addr));
-        char buffer[BUF_SIZE] = { 0 };
-        if (recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &addr, &len) < 0) {
-          if (WSAGetLastError() == WSAEWOULDBLOCK) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            continue;
-          }
-          else {
-            error("recvfrom error", WSAGetLastError());
-          }
+    void error(const std::string& msg, int err) {
+        std::stringstream str;
+        str << msg << " : " << errorToString(err);
+        throw std::runtime_error(str.str());
+    }
+
+    void alert(const std::exception& ex) {
+        std::stringstream str;
+        str << "Listener exception: " << ex.what();
+        if (errorCallback) errorCallback(str.str());
+        else std::cout << str.str() << std::endl;
+    }
+
+    void start() {
+        running = true;
+        std::thread thread([&]() { listen(); });
+        thread.detach();
+    }
+
+    void stop() {
+        running = false;
+
+        auto start = std::chrono::steady_clock::now();
+        bool success = false;
+
+        while (true) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            auto end = std::chrono::steady_clock::now();
+            std::chrono::duration<double> elapsed_seconds = end - start;
+
+            if (sock < 0) {
+                success = true;
+                break;
+            }
+            if (elapsed_seconds.count() > 5) {
+                success = false;
+                break;
+            }
         }
 
-        if (listenCallback) listenCallback(buffer);
-      }
-      catch (const std::exception& ex) {
-        alert(ex);
-      }
+        if (!success)
+            error("listener socket close time out error", ETIMEDOUT);
     }
 
-    try {
-      if (sock > -1) {
-        if (closesocket(sock) < 0)
-          error("close error", WSAGetLastError());
-        sock = -1;
-      }
+    void listen() {
+        while (running) {
+            try {
+                struct sockaddr_in addr;
+                socklen_t len = sizeof(addr);
+                memset(&addr, 0, sizeof(addr));
+                char buffer[BUF_SIZE] = { 0 };
+                if (recvfrom(sock, buffer, BUF_SIZE, 0, (struct sockaddr *) &addr, &len) < 0) {
+                    if (WSAGetLastError() == WSAEWOULDBLOCK) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        continue;
+                    }
+                    else {
+                        error("recvfrom error", WSAGetLastError());
+                    }
+                }
+
+                if (listenCallback) listenCallback(buffer);
+            }
+            catch (const std::exception& ex) {
+                alert(ex);
+            }
+        }
+
+        try {
+            if (sock > -1) {
+                if (closesocket(sock) < 0)
+                    error("close error", WSAGetLastError());
+                sock = -1;
+            }
+        }
+        catch (const std::exception& ex) {
+            alert(ex);
+        }
     }
-    catch (const std::exception& ex) {
-      alert(ex);
-    }
-  }
 };
 
 }

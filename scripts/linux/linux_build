@@ -8,13 +8,13 @@ export SCRIPT_DIR
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
-  echo "Project directory $PROJECT_DIR does not exist" >&2
-  exit 1
+    echo "Project directory $PROJECT_DIR does not exist" >&2
+    exit 1
 fi
 
 if [[ ! -f "$PROJECT_DIR/pyproject.toml" && ! -f "$PROJECT_DIR/setup.py" ]]; then
-  echo "Invalid Python project directory, did not find either pyproject.toml or setup.py in $PROJECT_DIR" >&2
-  exit 1
+    echo "Invalid Python project directory, did not find either pyproject.toml or setup.py in $PROJECT_DIR" >&2
+    exit 1
 fi
 
 echo "Project Directory: $PROJECT_DIR" >&2
@@ -23,34 +23,34 @@ BASE="$PWD"
 venvs=("py310" "py311" "py312" "py313" "py314")
 #venvs=("py313")
 for venv in "${venvs[@]}"; do
-  echo "Python venv: $venv" >&2
-  if [ ! -d "$BASE/$venv" ]; then
-    version="${venv:2}"
-    version="${version:0:1}.${version:1}"
-    echo "version $version"
-    python${version} -m venv "$BASE/$venv"
+    echo "Python venv: $venv" >&2
+    if [ ! -d "$BASE/$venv" ]; then
+        version="${venv:2}"
+        version="${version:0:1}.${version:1}"
+        echo "version $version"
+        python${version} -m venv "$BASE/$venv"
+        source "$BASE/$venv/bin/activate"
+        pip install --upgrade pip
+        deactivate
+    fi
     source "$BASE/$venv/bin/activate"
-    pip install --upgrade pip
+    python --version
+    pip install build auditwheel patchelf
+    cd "$PROJECT_DIR"
+    python -m build --sdist --wheel
+
+    wheel=$(ls -1 dist/*${venv:2}*)
+    echo $wheel
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "i386" ]] || [[ "$ARCH" == "i686" ]]; then
+        echo "processor architecture is x86"
+        auditwheel repair "$wheel" --plat manylinux_2_28_x86_64
+    elif [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "arm"* ]]; then
+        echo "aarch64"
+        auditwheel repair "$wheel" --plat manylinux_2_28_aarch64
+    else
+        echo "ERROR: UNABLE TO BUILD WHEEL - Unknown architecture: $ARCH"
+    fi
+
     deactivate
-  fi
-  source "$BASE/$venv/bin/activate"
-  python --version
-  pip install build auditwheel patchelf
-  cd "$PROJECT_DIR"
-  python -m build --sdist --wheel
-
-  wheel=$(ls -1 dist/*${venv:2}*)
-  echo $wheel
-  ARCH=$(uname -m)
-  if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "i386" ]] || [[ "$ARCH" == "i686" ]]; then
-    echo "processor architecture is x86"
-    auditwheel repair "$wheel" --plat manylinux_2_28_x86_64
-  elif [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]] || [[ "$ARCH" == "arm"* ]]; then
-    echo "aarch64"
-    auditwheel repair "$wheel" --plat manylinux_2_28_aarch64
-  else
-    echo "ERROR: UNABLE TO BUILD WHEEL - Unknown architecture: $ARCH"
-  fi
-
-  deactivate
 done

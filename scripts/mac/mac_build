@@ -8,13 +8,13 @@ export SCRIPT_DIR
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
-  echo "Project directory $PROJECT_DIR does not exist" >&2
-  exit 1
+    echo "Project directory $PROJECT_DIR does not exist" >&2
+    exit 1
 fi
 
 if [[ ! -f "$PROJECT_DIR/pyproject.toml" && ! -f "$PROJECT_DIR/setup.py" ]]; then
-  echo "Invalid Python project directory, did not find either pyproject.toml or setup.py in $PROJECT_DIR" >&2
-  exit 1
+    echo "Invalid Python project directory, did not find either pyproject.toml or setup.py in $PROJECT_DIR" >&2
+    exit 1
 fi
 
 echo "Project Directory: $PROJECT_DIR" >&2
