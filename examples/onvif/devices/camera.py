@@ -333,6 +333,33 @@ def set_imaging_settings(url: str, username: str, password: str, time_offset: in
 
     return onvif_post(url, body, username, password, time_offset)
 
+@safe_run
+def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) -> bool:
+
+    print(f"SET NETWORK INTERFACES: {network_interface.token}")
+
+    manual = ""
+    if not network_interface.ipv4.dhcp:
+        manual = f"""
+            <tt:Manual>
+                <tt:Address>{network_interface.ipv4.manual[0].address}</tt:Address>
+                <tt:PrefixLength>{network_interface.ipv4.manual[0].prefix_length}</tt:PrefixLength>
+            </tt:Manual>"""
+    body = f"""
+<tds:SetNetworkInterfaces>
+    <tt:InterfaceToken>{network_interface.token}</tt:InterfaceToken>
+    <tt:NetworkInterface>
+        <tt:IPv4>
+            <tt:DHCP>{str(network_interface.ipv4.dhcp).lower()}</tt:DHCP>{manual}
+        </tt:IPv4>
+    </tt:NetworkInterface>
+</tds:SetNetworkInterfaces>""".strip()
+    
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
+    return bool(reboot_required)
+
+
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
 

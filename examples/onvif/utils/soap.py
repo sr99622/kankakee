@@ -11,7 +11,7 @@ from typing import Optional, Callable
 from lxml import etree
 from .xml import NS
 
-POST_TIMEOUT = 5
+POST_TIMEOUT = 10
 
 @dataclass
 class SoapFault:
