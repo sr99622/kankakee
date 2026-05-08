@@ -10,7 +10,12 @@ from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from functools import wraps
 import xml.etree.ElementTree as ET
 from utils.xml import text, NS
-
+from urllib.parse import unquote_plus, urlparse
+import uuid
+import ipaddress
+from kankakee import Broadcaster
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Callable
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
@@ -39,8 +44,6 @@ class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
     device_information: Optional[str] = None
-    serial_number: Optional[str] = None
-    ip_address: Optional[str] = None
     time_offset: Optional[int] = 0
     username: Optional[str] = None
     password: Optional[str] = None
@@ -62,6 +65,23 @@ def safe_run(func):
             logger.debug(traceback.format_exc())
             return None
     return wrapper
+
+def get_camera_name(xml_data: str) -> str:
+    scopes = get_xml_value(xml_data, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:Scopes")
+    name_id = "onvif://www.onvif.org/name/"
+    hdwr_id = "onvif://www.onvif.org/hardware/"
+    name = ""
+    hdwr = ""
+    for field in scopes.split():
+        if name_id in field:
+            name = unquote_plus(field[len(name_id):])
+        if hdwr_id in field:
+            hdwr = unquote_plus(field[len(hdwr_id):])
+    if name and hdwr:
+        if hdwr not in name:
+            return f"{name} {hdwr}"
+        return name
+    return "UNKNOWN CAMERA"
 
 # DATE AND TIME FUNCTIONS
 #
@@ -289,6 +309,7 @@ def set_video_encoder_configuration(url: str, username: str, password: str, time
 
     return onvif_post(url, body, username, password, time_offset)
 
+
 def set_audio_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: AudioEncoderConfiguration) -> str:
     multicast_addr = ""
     if encoder.multicast.address_type == "IPv4":
@@ -318,6 +339,7 @@ def set_audio_encoder_configuration(url: str, username: str, password: str, time
 </trt:SetAudioEncoderConfiguration>""".strip()
 
     return onvif_post(url, body, username, password, time_offset)
+
     
 def set_imaging_settings(url: str, username: str, password: str, time_offset: int, video_source_token: str, imaging: ImagingSettings) -> str:
     body = f"""
@@ -332,6 +354,7 @@ def set_imaging_settings(url: str, username: str, password: str, time_offset: in
 </timg:SetImagingSettings>""".strip()
 
     return onvif_post(url, body, username, password, time_offset)
+
 
 @safe_run
 def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) -> bool:
@@ -413,3 +436,50 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             
     return camera
  
+def discover(ip_address: str, camera_filled: Callable[[Camera], None] | None = None) -> list[Camera]:
+    cameras = []
+    camera_jobs = []
+    msg_id = uuid.uuid4()
+    soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
+    broadcaster = Broadcaster(ip_address, "239.255.255.250", 3702)
+    broadcaster.errorCallback = logger.error
+    broadcaster.send(soap)
+    results = broadcaster.recv()
+
+    for result in results:
+        if not str(msg_id) in get_xml_value(result, "//s:Header//a:RelatesTo"):
+            continue
+
+        name = get_camera_name(result)
+        xaddrs = get_xml_value(result, "//s:Body//d:ProbeMatches//d:ProbeMatch//d:XAddrs").split()
+        for xaddr in xaddrs:
+            duplicate = False
+            for x, n in camera_jobs:
+                if x == xaddr:
+                    duplicate = True
+                    break
+            if duplicate:
+                continue
+
+            ip_obj = ipaddress.ip_address(urlparse(xaddr).hostname)
+            if ip_obj.version == 6:
+                continue
+            if ip_obj.is_link_local:
+                continue
+
+            camera_jobs.append((xaddr, name))
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(get_camera, "admin", "admin123", xaddr, name)
+            for xaddr, name in camera_jobs
+        ]
+
+        for future in as_completed(futures):
+            if camera := future.result():
+                cameras.append(camera)
+
+                if camera_filled:
+                    camera_filled(camera)
+
+    return cameras
