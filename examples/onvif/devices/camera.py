@@ -382,6 +382,16 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) 
     reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
     return bool(reboot_required)
 
+def set_network_default_gateway(camera: Camera) -> bool:
+    body = f"""
+<tds:SetNetworkDefaultGateway>
+    <tt:IPv4Address>{camera.network_gateway}</tt:IPv4Address>
+</tds:SetNetworkDefaultGateway>""".strip()
+    
+    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
+    return bool(reboot_required)
+
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
