@@ -10,7 +10,7 @@ from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from fields import field_descriptions
 
-
+EDITABLE_FIELDS = ["network_gateway"]
 EDITABLE_STYLE = "#66cc66"
 
 class CameraTree(Tree):
@@ -22,6 +22,10 @@ class CameraTree(Tree):
         ("]", "toggle_recursive", "Open/close all"),
     ]
 
+    def join_fqn(self, parent_fqn: str | None, field_name: str) -> str:
+        if parent_fqn:
+            return f"{parent_fqn}.{field_name}"
+        return field_name
 
     def get_fqn(self, node: TreeNode) -> str:
         parts = []
@@ -80,25 +84,29 @@ class CameraTree(Tree):
 
         for field in fields(camera):
             value = getattr(camera, field.name)
+            self._add_value(camera_node, field.name, value, camera)
 
-            if field.name == "network_gateway":
-                node = camera_node.add_leaf(self._make_editable_label(field.name, str(value)))
-                node.data = {"camera": camera, "field": field.name}
-            else:
-                self._add_value(camera_node, field.name, value, camera)
 
         if len(self.root.children) == 1:
             self.root.expand()
 
     def _add_value(self, parent, name: str, value: object, camera: Camera) -> None:
+
+        fqn = self.join_fqn(self.get_fqn(parent), name)
+
+        if fqn in EDITABLE_FIELDS:
+            node = parent.add_leaf(self._make_editable_label(name, str(value)))
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
+            return
+
         if value is None:
             node = parent.add_leaf(Text(f"{name}: None", style="dim"))
-            node.data = {"camera": camera, "field": name}
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
             return
 
         if is_dataclass(value):
             node = parent.add(name, expand=False)
-            node.data = {"camera": camera, "field": name}
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
             for field in fields(value):
                 child_value = getattr(value, field.name)
                 self._add_value(node, field.name, child_value, camera)
@@ -108,22 +116,22 @@ class CameraTree(Tree):
                 # dim / grey text for empty lists
                 label = Text(f"{name}: list[0]", style="dim")
                 node = parent.add_leaf(label)
-                node.data = {"camera": camera, "field": name}
+                node.data = {"camera": camera, "field": name, "fqn": fqn}
                 return
             node = parent.add(f"{name}: list[{len(value)}]", expand=False)
-            node.data = {"camera": camera, "field": name}
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
             for index, item in enumerate(value):
                 self._add_value(node, f"[{index}]", item, camera)
 
         elif isinstance(value, dict):
             node = parent.add(f"{name}: dict[{len(value)}]", expand=False)
-            node.data = {"camera": camera, "field": name}
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
             for key, item in value.items():
                 self._add_value(node, str(key), item, camera)
 
         else:
             node = parent.add_leaf(f"{name}: {value}")
-            node.data = {"camera": camera, "field": name}
+            node.data = {"camera": camera, "field": name, "fqn": fqn}
 
 class ObjectBrowser(App):
     BINDINGS = [
@@ -199,9 +207,12 @@ class ObjectBrowser(App):
         self.set_focus(self.camera_tree)
 
     def action_edit_selected(self) -> None:
+
         node = self.camera_tree.cursor_node
         if node is None:
             return
+
+        #self.debug_log.write(f"action edit selected: {node.data}")
 
         data = getattr(node, "data", None)
         if not data or data.get("field") != "network_gateway":
