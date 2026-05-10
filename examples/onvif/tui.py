@@ -1,13 +1,15 @@
 from dataclasses import dataclass, asdict
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Footer, ListView, ListItem, Label, Tree, Input, Log
+from textual.widgets import Header, Footer, ListView, ListItem, Label, Tree, Input, RichLog, Log
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
 from devices.camera import Camera, discover, set_network_default_gateway
 import json
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
+from fields import field_descriptions
+
 
 EDITABLE_STYLE = "#66cc66"
 
@@ -21,8 +23,30 @@ class CameraTree(Tree):
     ]
 
 
+    def get_fqn(self, node: TreeNode) -> str:
+        parts = []
+        current = node
+        while current is not None:
+            parent = current.parent
+            if parent is None:
+                break
+            data = getattr(current, "data", None)
+            if data and "field" in data:
+                parts.append(data["field"])
+            current = parent
+        return ".".join(reversed(parts))
+
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        self.app.debug_log.write_line(f"TESTING: {event.node}")
+        self.app.debug_log.clear()
+        #self.app.debug_log.write(event.node.label if event.node else "")
+        self.app.debug_log.write(self.get_fqn(event.node))
+        self.app.debug_log.write("-------------------------------")
+        if desc := field_descriptions.get(self.get_fqn(event.node)):
+            self.app.debug_log.write(desc)
+
+        #self.app.debug_log.write(event.node.parent.label if event.node.parent else "")
+        #if event.node.data.doc:
+        #    self.app.debug_log.write(event.node.data["doc"])
 
     def _make_editable_label(self, field: str, value: str) -> Text:
         label = Text()
@@ -33,10 +57,8 @@ class CameraTree(Tree):
 
     def action_toggle_recursive(self) -> None:
         node = self.cursor_node
-
         if node is None:
             return
-
         if node.is_expanded:
             self._collapse_recursive(node)
         else:
@@ -44,18 +66,15 @@ class CameraTree(Tree):
 
     def _expand_recursive(self, node: TreeNode) -> None:
         node.expand()
-
         for child in node.children:
             self._expand_recursive(child)
 
     def _collapse_recursive(self, node: TreeNode) -> None:
         for child in node.children:
             self._collapse_recursive(child)
-
         node.collapse()        
 
     def add_camera(self, camera: Camera) -> None:
-        #self.app.debug_log.write_line(f"camera found: {camera.name}")
         label = camera.name
         camera_node = self.root.add(label, expand=False)
 
@@ -64,44 +83,47 @@ class CameraTree(Tree):
 
             if field.name == "network_gateway":
                 node = camera_node.add_leaf(self._make_editable_label(field.name, str(value)))
-                node.data = {
-                    "camera": camera,
-                    "field": "network_gateway",
-                }
+                node.data = {"camera": camera, "field": field.name}
             else:
-                self._add_value(camera_node, field.name, value)
+                self._add_value(camera_node, field.name, value, camera)
 
         if len(self.root.children) == 1:
             self.root.expand()
 
-    def _add_value(self, parent, name: str, value: object) -> None:
+    def _add_value(self, parent, name: str, value: object, camera: Camera) -> None:
         if value is None:
-            parent.add_leaf(Text(f"{name}: None", style="dim"))
+            node = parent.add_leaf(Text(f"{name}: None", style="dim"))
+            node.data = {"camera": camera, "field": name}
             return
 
         if is_dataclass(value):
             node = parent.add(name, expand=False)
+            node.data = {"camera": camera, "field": name}
             for field in fields(value):
                 child_value = getattr(value, field.name)
-                self._add_value(node, field.name, child_value)
+                self._add_value(node, field.name, child_value, camera)
 
         elif isinstance(value, list):
             if not value:
                 # dim / grey text for empty lists
                 label = Text(f"{name}: list[0]", style="dim")
-                parent.add_leaf(label)
+                node = parent.add_leaf(label)
+                node.data = {"camera": camera, "field": name}
                 return
             node = parent.add(f"{name}: list[{len(value)}]", expand=False)
+            node.data = {"camera": camera, "field": name}
             for index, item in enumerate(value):
-                self._add_value(node, f"[{index}]", item)
+                self._add_value(node, f"[{index}]", item, camera)
 
         elif isinstance(value, dict):
             node = parent.add(f"{name}: dict[{len(value)}]", expand=False)
+            node.data = {"camera": camera, "field": name}
             for key, item in value.items():
-                self._add_value(node, str(key), item)
+                self._add_value(node, str(key), item, camera)
 
         else:
-            parent.add_leaf(f"{name}: {value}")
+            node = parent.add_leaf(f"{name}: {value}")
+            node.data = {"camera": camera, "field": name}
 
 class ObjectBrowser(App):
     BINDINGS = [
@@ -116,14 +138,14 @@ class ObjectBrowser(App):
     }
 
     CameraTree {
-        width: 70%;
+        width: 60%;
         height: 1fr;
         border: solid green;
         padding: 1 2;
     }
 
     #debug_log {
-        width: 30%;
+        width: 40%;
         height: 1fr;
         border: solid blue;
         padding: 1;
@@ -144,18 +166,30 @@ class ObjectBrowser(App):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:
             return
-        new_value = event.value.strip()
-        self.editing_camera.network_gateway = new_value
-        #self.editing_node.label = f"network_gateway: {new_value}"
-        self.editing_node.set_label(self.camera_tree._make_editable_label("network_gateway", str(new_value)))
+        
+        self.debug_log.write(self.editing_node.data["field"])
+
+        match self.editing_node.data["field"]:
+            case "network_gateway":
+                new_value = event.value.strip()
+                old_value = self.editing_camera.network_gateway
+                self.editing_camera.network_gateway = new_value
+
+                try:
+                    msg = "Updated successfully."
+                    if set_network_default_gateway(self.editing_camera):
+                        msg += " Please reboot the camera to enact the update.\n"              
+                    self.debug_log.write(msg)
+                except Exception as ex:
+                    self.editing_camera.network_gateway = old_value
+                    self.debug_log.write(ex)
+                    return
+
+                self.editing_node.set_label(self.camera_tree._make_editable_label("network_gateway", str(new_value)))
+
         self.edit_input.add_class("hidden")
         self.set_focus(self.camera_tree)
 
-        # Later you can call your XML command here:
-        # set_network_gateway(self.editing_camera, new_value)
-        needs_reboot = set_network_default_gateway(self.editing_camera)
-        if needs_reboot:
-            print("NEEDS REBOOT")
 
     def action_cancel_edit(self) -> None:
         if self.edit_input.has_class("hidden"):
@@ -185,7 +219,8 @@ class ObjectBrowser(App):
         self.camera_tree = CameraTree()
         self.edit_input = Input(id="edit_box", placeholder="New value")
         self.edit_input.add_class("hidden")
-        self.debug_log = Log(id="debug_log", highlight=True)
+        self.debug_log = RichLog(id="debug_log", highlight=True, wrap=True)
+        #self.debug_log = Log(id="debug_log", highlight=True)
 
         yield Header()
         with Horizontal(id="main"):

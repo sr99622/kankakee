@@ -392,6 +392,14 @@ def set_network_default_gateway(camera: Camera) -> bool:
     reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
     return bool(reboot_required)
 
+def set_hostname_from_dhcp(camera: Camera) -> str:
+    body = f"""
+<tds:SetHostnameFromDHCP>
+    <tt:FromDHCP>{str(camera.hostname.from_dhcp).lower()}</tt:FromDHCP>
+</tds:SetHostnameFromDHCP>""".strip()
+    
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
