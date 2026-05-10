@@ -10,7 +10,7 @@ from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from fields import field_descriptions
 
-EDITABLE_FIELDS = ["network_gateway"]
+EDITABLE_FIELDS = ["network_gateway", "hostname.from_dhcp"]
 EDITABLE_STYLE = "#66cc66"
 
 class CameraTree(Tree):
@@ -42,15 +42,9 @@ class CameraTree(Tree):
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.app.debug_log.clear()
-        #self.app.debug_log.write(event.node.label if event.node else "")
-        self.app.debug_log.write(self.get_fqn(event.node))
-        self.app.debug_log.write("-------------------------------")
-        if desc := field_descriptions.get(self.get_fqn(event.node)):
-            self.app.debug_log.write(desc)
-
-        #self.app.debug_log.write(event.node.parent.label if event.node.parent else "")
-        #if event.node.data.doc:
-        #    self.app.debug_log.write(event.node.data["doc"])
+        if event.node.data:
+            if desc := field_descriptions.get(event.node.data["fqn"]):
+                self.app.debug_log.write(desc)
 
     def _make_editable_label(self, field: str, value: str) -> Text:
         label = Text()
@@ -175,9 +169,9 @@ class ObjectBrowser(App):
         if event.input is not self.edit_input:
             return
         
-        self.debug_log.write(self.editing_node.data["field"])
+        self.debug_log.write(self.editing_node.data["fqn"])
 
-        match self.editing_node.data["field"]:
+        match self.editing_node.data["fqn"]:
             case "network_gateway":
                 new_value = event.value.strip()
                 old_value = self.editing_camera.network_gateway
