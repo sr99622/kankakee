@@ -1,7 +1,13 @@
-from typing import Any, get_args, get_origin, Union
+from typing import Any, get_args, get_origin, Union, List, get_type_hints
 import types
 
-EDITABLE_FIELDS = ["network_gateway", "hostname.from_dhcp", "hostname.name"]
+EDITABLE_FIELDS = [
+    "network_gateway", 
+    "hostname.from_dhcp", 
+    "hostname.name",
+    "dns.from_dhcp", 
+    "dns.dns_manual",
+]
 
 def join_fqn(parent_fqn: str | None, field_name: str) -> str:
     if parent_fqn:
@@ -18,9 +24,59 @@ def unwrap_optional(field_type: Any) -> Any:
 
     return field_type
 
+from typing import Any, get_origin, get_args
+
+import ipaddress
+
+
+def parse_ip_string_list(text: str) -> list[str]:
+    text = text.strip()
+
+    if not text:
+        return []
+
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1]
+
+    result: list[str] = []
+
+    for raw in text.split(","):
+        item = raw.strip()
+        item = item.strip('"').strip("'").strip()
+
+        if not item:
+            continue
+
+        try:
+            ip = ipaddress.ip_address(item)
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {item}")
+
+        result.append(str(ip))
+
+    return result
+
 def convert_string_value(value: str, field_type: Any) -> Any:
     field_type = unwrap_optional(field_type)
 
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+
+    # --- list[str] handling ---
+    if origin is list:
+        item_type = args[0] if args else str
+
+        if item_type is str:
+            return parse_ip_string_list(value)
+
+        # generic fallback for other list types
+        return [
+            convert_string_value(item.strip(), item_type)
+            for item in value.split(",")
+            if item.strip()
+        ]
+
+    # --- scalar handling ---
     if field_type is str:
         return value
 
@@ -41,22 +97,48 @@ def convert_string_value(value: str, field_type: Any) -> Any:
 
         raise ValueError(f"Invalid bool value: {value}")
 
-    # fallback: leave as string
+    # fallback
     return value
 
-def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, type | None]:
+def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
     parts = fqn.split(".")
     owner = root
+
     for part in parts[:-1]:
         owner = getattr(owner, part)
+
     field_name = parts[-1]
-    field_type = None
-    if hasattr(owner, "__dataclass_fields__"):
-        field_info = owner.__dataclass_fields__.get(field_name)
-        if field_info:
-            field_type = field_info.type
+
+    type_hints = get_type_hints(type(owner))
+    field_type = type_hints.get(field_name)
+
     return owner, field_name, field_type
 
+def analyze_field_type(field_type: Any) -> tuple[Any, bool, bool]:
+    is_optional = False
+
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+
+    # Optional[T] / T | None
+    if origin in (Union, types.UnionType):
+        non_none = [arg for arg in args if arg is not type(None)]
+
+        if len(non_none) == 1:
+            is_optional = True
+            field_type = non_none[0]
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
+    # list[T] or typing.List[T]
+    if origin is list:
+        item_type = args[0] if args else Any
+        return item_type, is_optional, True
+
+    if field_type is list:
+        return Any, is_optional, True
+
+    return field_type, is_optional, False
 
 field_descriptions = {
     "network_gateway": 
@@ -97,6 +179,22 @@ A device shall accept string formated according
 to RFC 1123 section 2.1 or alternatively to 
 RFC 952, other string shall be considered as 
 invalid strings.
+""",
+
+    "dns":
+"""
+A value that may be assigned by DHCP or set
+manually that specifies the Domain Name
+Server to be used by the camera
+""",
+
+    "dns.from_dhcp":
+"""
+Indicate if the DNS address is to be set 
+automatically using DHCP. If this value is
+set to False, there should be at least one
+value set in the dns_manual list to identify 
+DNS servers
 """
 
 }

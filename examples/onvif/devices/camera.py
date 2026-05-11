@@ -357,7 +357,7 @@ def set_imaging_settings(url: str, username: str, password: str, time_offset: in
 
 
 @safe_run
-def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) -> bool:
+def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) -> str:
 
     print(f"SET NETWORK INTERFACES: {network_interface.token}")
 
@@ -378,9 +378,7 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) 
     </tt:NetworkInterface>
 </tds:SetNetworkInterfaces>""".strip()
     
-    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-    reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
-    return bool(reboot_required)
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
@@ -398,7 +396,7 @@ def set_hostname_from_dhcp(camera: Camera) -> str:
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-def set_hostname(camera: Camera) -> None:
+def set_hostname(camera: Camera) -> str:
     body = f"""
 <tds:SetHostname>
     <tds:Name>{camera.hostname.name}</tds:Name>
@@ -406,6 +404,34 @@ def set_hostname(camera: Camera) -> None:
 """.strip()
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+def set_dns(camera: Camera) -> str:
+    manual_xml = ""
+    for address_text in camera.dns.dns_manual:
+        ip = ipaddress.ip_address(address_text)
+
+        if ip.version == 4:
+            ip_type = "IPv4"
+            address_xml = f"<tt:IPv4Address>{ip}</tt:IPv4Address>"
+        else:
+            ip_type = "IPv6"
+            address_xml = f"<tt:IPv6Address>{ip}</tt:IPv6Address>"
+
+        manual_xml += f"""
+            <tds:DNSManual>
+                <tt:Type>{ip_type}</tt:Type>
+                {address_xml}
+            </tds:DNSManual>
+        """
+
+    body = f"""
+<tds:SetDNS>
+    <tds:FromDHCP>{str(camera.dns.from_dhcp).lower()}</tds:FromDHCP>{manual_xml}
+</tds:SetDNS>
+""".strip()
+    
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    #return body
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)

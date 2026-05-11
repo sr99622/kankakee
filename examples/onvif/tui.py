@@ -1,16 +1,18 @@
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Footer, ListView, ListItem, Label, Tree, Input, RichLog, Log
+from textual.widgets import Header, Footer, Tree, Input, RichLog
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname
+        set_hostname, set_dns
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from fields import field_descriptions, EDITABLE_FIELDS, resolve_fqn_owner, convert_string_value, \
-        join_fqn
-from typing import Any, get_args, get_origin, Union
+        join_fqn, analyze_field_type
+from typing import Any, get_args, get_origin, Union, Optional
 import types
+import ipaddress
+import re
 
 class CameraTree(Tree):
     def __init__(self) -> None:
@@ -155,6 +157,12 @@ class ObjectBrowser(App):
         padding: 0 1;
     }
 
+    #edit_area {
+        dock: bottom;
+        height: 12;
+        border: solid yellow;
+    }
+
     .hidden {
         display: none;
     }
@@ -164,22 +172,43 @@ class ObjectBrowser(App):
         if event.input is not self.edit_input:
             return
         
-        self.debug_log.write(self.editing_node.data["fqn"])
+        self.debug_log.write(f"ON INPUT SUBMITTED: {self.editing_node.data["fqn"]}")
 
         try:
+            self.debug_log.write(f"editing field type: {self.editing_field_type}")
+
+            base_type, is_optional, is_list = analyze_field_type(self.editing_field_type)
+            if is_list:
+                self.debug_log.write(f"list field, item type = {base_type}")
+            else:
+                self.debug_log.write(f"scalar field, type = {base_type}, optional = {is_optional}")
+
             old_value = getattr(self.editing_owner, self.editing_field)
+
+            self.debug_log.write(f"OLD VALUE: {old_value}")
+
+            self.debug_log.write(f"EVENT VALUE: {event.value.strip()}")
+            self.debug_log.write(f"CONVERTED STRING VALUE: {convert_string_value(event.value.strip(), self.editing_field_type)}")
+
             setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
+
+
             msg = "Updated successfully.\n"
 
             match self.editing_node.data["fqn"]:
                 case "network_gateway":
                     if "RebootNeeded" in set_network_default_gateway(self.editing_camera):
-                        msg += " Please reboot the camera to enact the update.\n"              
+                        msg += "Please reboot the camera to enact the update.\n"              
                 case "hostname.from_dhcp":
                     if "RebootNeeded" in set_hostname_from_dhcp(self.editing_camera):
-                        msg += " Please reboot the camera to enact the update\n"
+                        msg += "Please reboot the camera to enact the update\n"
                 case "hostname.name":
                     set_hostname(self.editing_camera)
+                case "dns.from_dhcp":
+                    set_dns(self.editing_camera)
+                case "dns.dns_manual":
+                    self.debug_log.write("THIS IS A TEST POINT")
+                    self.debug_log.write(set_dns(self.editing_camera))
 
             self.debug_log.write(msg)
         except Exception as ex:

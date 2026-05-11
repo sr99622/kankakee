@@ -14,7 +14,7 @@ from datastructures.network import PrefixedIPv4Address
 
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
-    print("*", camera.name, camera.xaddr)    
+    print("*", camera.name, camera.dns)
 
 if __name__ == "__main__":
     cameras = []
