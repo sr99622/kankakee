@@ -382,24 +382,30 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) 
     reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
     return bool(reboot_required)
 
-def set_network_default_gateway(camera: Camera) -> bool:
+def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
 <tds:SetNetworkDefaultGateway>
     <tt:IPv4Address>{camera.network_gateway}</tt:IPv4Address>
 </tds:SetNetworkDefaultGateway>""".strip()
     
-    xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-    reboot_required = get_xml_value(xml, "//s:Body//tds:SetNetworkInterfacesResponse//tds:RebootNeeded")
-    return bool(reboot_required)
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_hostname_from_dhcp(camera: Camera) -> str:
     body = f"""
 <tds:SetHostnameFromDHCP>
-    <tt:FromDHCP>{str(camera.hostname.from_dhcp).lower()}</tt:FromDHCP>
+    <tds:FromDHCP>{str(camera.hostname.from_dhcp).lower()}</tds:FromDHCP>
 </tds:SetHostnameFromDHCP>""".strip()
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+def set_hostname(camera: Camera) -> None:
+    body = f"""
+<tds:SetHostname>
+    <tds:Name>{camera.hostname.name}</tds:Name>
+</tds:SetHostname>
+""".strip()
+    
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)

@@ -4,13 +4,13 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, ListView, ListItem, Label, Tree, Input, RichLog, Log
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
-from devices.camera import Camera, discover, set_network_default_gateway
+from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
+        set_hostname
 import json
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
-from fields import field_descriptions
+from fields import field_descriptions, EDITABLE_FIELDS
 
-EDITABLE_FIELDS = ["network_gateway", "hostname.from_dhcp"]
 EDITABLE_STYLE = "#66cc66"
 
 class CameraTree(Tree):
@@ -165,6 +165,16 @@ class ObjectBrowser(App):
     }
     """
 
+    def resolve_fqn_owner(self, root: object, fqn: str) -> tuple[object, str]:
+        parts = fqn.split(".")
+        owner = root
+
+        for part in parts[:-1]:
+            owner = getattr(owner, part)
+
+        field_name = parts[-1]
+        return owner, field_name
+    
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:
             return
@@ -179,15 +189,42 @@ class ObjectBrowser(App):
 
                 try:
                     msg = "Updated successfully."
-                    if set_network_default_gateway(self.editing_camera):
+                    if "RebootNeeded" in set_network_default_gateway(self.editing_camera):
                         msg += " Please reboot the camera to enact the update.\n"              
                     self.debug_log.write(msg)
                 except Exception as ex:
                     self.editing_camera.network_gateway = old_value
                     self.debug_log.write(ex)
-                    return
+                    #return
+                self.editing_node.set_label(self.camera_tree._make_editable_label("network_gateway", str(self.editing_camera.network_gateway)))
 
-                self.editing_node.set_label(self.camera_tree._make_editable_label("network_gateway", str(new_value)))
+            case "hostname.from_dhcp":
+                new_value = event.value.strip()
+                old_value = str(self.editing_camera.hostname.from_dhcp)
+                self.editing_camera.hostname.from_dhcp = bool(new_value.lower() == "true")
+                try:
+                    msg = "Updated Successfully."
+                    if "RebootNeeded" in set_hostname_from_dhcp(self.editing_camera):
+                        msg += " Please reboot the camera to enact the update\n"
+                    self.debug_log.write(msg)
+                except Exception as ex:
+                    self.editing_camera.hostname.from_dhcp = bool(old_value)
+                    self.debug_log.write(ex)
+                    #return
+                self.editing_node.set_label(self.camera_tree._make_editable_label("from_dhcp", str(self.editing_camera.hostname.from_dhcp)))
+
+            case "hostname.name":
+                new_value = event.value.strip()
+                old_value = str(self.editing_camera.hostname.name)
+                self.editing_camera.hostname.name = new_value
+                try:
+                    set_hostname(self.editing_camera)
+                    self.debug_log.write("Updated successfully.")
+                except Exception as ex:
+                    self.editing_camera.hostname.name = old_value
+                    self.debug_log.write(ex)
+                    #return
+                self.editing_node.set_label(self.camera_tree._make_editable_label("name", str(self.editing_camera.hostname.name)))
 
         self.edit_input.add_class("hidden")
         self.set_focus(self.camera_tree)
@@ -203,20 +240,18 @@ class ObjectBrowser(App):
     def action_edit_selected(self) -> None:
 
         node = self.camera_tree.cursor_node
-        if node is None:
+        if node is None or not node.data:
             return
 
-        #self.debug_log.write(f"action edit selected: {node.data}")
+        self.debug_log.write(f"action edit selected: {node.data["fqn"]}")
+        fqn = node.data["fqn"]
+        camera = node.data["camera"]
+        owner, field_name = self.resolve_fqn_owner(camera, fqn)
 
-        data = getattr(node, "data", None)
-        if not data or data.get("field") != "network_gateway":
-            return
-
-        camera = data["camera"]
         self.editing_node = node
         self.editing_camera = camera
-        self.editing_field = "network_gateway"
-        self.edit_input.value = camera.network_gateway or ""
+        self.editing_field = field_name
+        self.edit_input.value = str(getattr(owner, field_name) or "")
         self.edit_input.remove_class("hidden")
         self.set_focus(self.edit_input)
 
