@@ -4,11 +4,11 @@ from textual.widgets import Header, Footer, Tree, Input, RichLog
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns, set_ntp
+        set_hostname, set_dns, set_ntp, set_network_interfaces
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from fields import field_descriptions, EDITABLE_FIELDS, resolve_fqn_owner, convert_string_value, \
-        join_fqn, analyze_field_type
+        join_fqn, analyze_field_type, is_editable_field, normalize_fqn
 from typing import Any, get_args, get_origin, Union, Optional
 import types
 import ipaddress
@@ -40,6 +40,7 @@ class CameraTree(Tree):
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.app.debug_log.clear()
         if event.node.data:
+            self.app.debug_log.write(event.node.data["fqn"])
             if desc := field_descriptions.get(event.node.data["fqn"]):
                 self.app.debug_log.write(desc)
 
@@ -72,12 +73,9 @@ class CameraTree(Tree):
     def add_camera(self, camera: Camera) -> None:
         label = camera.name
         camera_node = self.root.add(label, expand=False)
-
         for field in fields(camera):
             value = getattr(camera, field.name)
             self._add_value(camera_node, field.name, value, camera)
-
-
         if len(self.root.children) == 1:
             self.root.expand()
 
@@ -85,7 +83,7 @@ class CameraTree(Tree):
 
         fqn = join_fqn(self.get_fqn(parent), name)
 
-        if fqn in EDITABLE_FIELDS:
+        if is_editable_field(fqn):
             node = parent.add_leaf(self._make_editable_label(name, str(value)))
             node.data = {"camera": camera, "field": name, "fqn": fqn}
             return
@@ -178,24 +176,22 @@ class ObjectBrowser(App):
             self.debug_log.write(f"editing field type: {self.editing_field_type}")
 
             base_type, is_optional, is_list = analyze_field_type(self.editing_field_type)
+            old_value = getattr(self.editing_owner, self.editing_field)
+            setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
+
+            '''
             if is_list:
                 self.debug_log.write(f"list field, item type = {base_type}")
             else:
                 self.debug_log.write(f"scalar field, type = {base_type}, optional = {is_optional}")
-
-            old_value = getattr(self.editing_owner, self.editing_field)
-
             self.debug_log.write(f"OLD VALUE: {old_value}")
-
             self.debug_log.write(f"EVENT VALUE: {event.value.strip()}")
             self.debug_log.write(f"CONVERTED STRING VALUE: {convert_string_value(event.value.strip(), self.editing_field_type)}")
-
-            setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
-
+            '''
 
             msg = "Updated successfully.\n"
 
-            match self.editing_node.data["fqn"]:
+            match normalize_fqn(self.editing_node.data["fqn"]):
                 case "network_gateway":
                     if "RebootNeeded" in set_network_default_gateway(self.editing_camera):
                         msg += "Please reboot the camera to enact the update.\n"              
@@ -212,6 +208,13 @@ class ObjectBrowser(App):
                     self.debug_log.write(set_ntp(self.editing_camera))
                 case "ntp.ntp_manual":
                     self.debug_log.write(set_ntp(self.editing_camera))
+                case "network_interfaces.[*].ipv4.dhcp":
+                    index = self.editing_indicies[-1]
+                    interface = self.editing_camera.network_interfaces[index]
+                    manual = interface.ipv4.manual
+                    self.debug_log.write(set_network_interfaces(self.editing_camera, interface, manual))
+                case "network_interfaces.[*].ipv4.manual":
+                    self.debug_log.write("network_interfaces.[*].ipv4.manual")
 
             self.debug_log.write(msg)
         except Exception as ex:
@@ -238,7 +241,7 @@ class ObjectBrowser(App):
         self.debug_log.write(f"action edit selected: {node.data["fqn"]}")
         fqn = node.data["fqn"]
         camera = node.data["camera"]
-        owner, field_name, field_type = resolve_fqn_owner(camera, fqn)
+        owner, field_name, field_type, indices = resolve_fqn_owner(camera, fqn)
         self.debug_log.write(f"FIELD TYPE: {field_type}")
 
         self.editing_node = node
@@ -246,6 +249,7 @@ class ObjectBrowser(App):
         self.editing_owner = owner
         self.editing_field = field_name
         self.editing_field_type = field_type
+        self.editing_indicies = indices
         self.edit_input.value = str(getattr(owner, field_name) or "")
         self.edit_input.remove_class("hidden")
         self.set_focus(self.edit_input)

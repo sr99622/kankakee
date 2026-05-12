@@ -17,10 +17,13 @@ class DNSInformation:
     dns_from_dhcp: list[str] = field(default_factory=list)
     dns_manual: list[str] = field(default_factory=list)
 
+'''
 @dataclass
 class PrefixedIPv4Address:
     address: Optional[str] = None
     prefix_length: Optional[int] = None
+'''
+
 
 @dataclass
 class PrefixedIPv6Address:
@@ -52,9 +55,9 @@ class NetworkInterfaceLink:
 @dataclass
 class IPv4NetworkInterface:
     enabled: Optional[bool] = None
-    manual: list[PrefixedIPv4Address] = field(default_factory=list)
-    link_local: Optional[PrefixedIPv4Address] = None
-    from_dhcp: Optional[PrefixedIPv4Address] = None
+    manual: list[str] = field(default_factory=list)
+    link_local: Optional[str] = None
+    from_dhcp: Optional[str] = None
     dhcp: Optional[bool] = None
 
 @dataclass
@@ -76,14 +79,17 @@ class NetworkInterface:
     ipv4: Optional[IPv4NetworkInterface] = None
     ipv6: Optional[IPv6NetworkInterface] = None
 
-def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[PrefixedIPv4Address]:
+def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[str]:
     if elem is None:
         return None
 
-    return PrefixedIPv4Address(
-        address=text(elem, "tt:Address"),
-        prefix_length=int_text(elem, "tt:PrefixLength"),
-    )
+    #return PrefixedIPv4Address(
+    #    address=text(elem, "tt:Address"),
+    #    prefix_length=int_text(elem, "tt:PrefixLength"),
+    #)
+    address=text(elem, "tt:Address")
+    prefix_length=int_text(elem, "tt:PrefixLength")
+    return f"{address} / {prefix_length}"
 
 def parse_prefixed_ipv6(elem: Optional[ET.Element]) -> Optional[PrefixedIPv6Address]:
     if elem is None:

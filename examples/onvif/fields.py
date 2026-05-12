@@ -1,5 +1,8 @@
 from typing import Any, get_args, get_origin, Union, List, get_type_hints
 import types
+import re
+
+_INDEX_RE = re.compile(r"^\[(\d+)\]$")
 
 EDITABLE_FIELDS = [
     "network_gateway", 
@@ -8,8 +11,16 @@ EDITABLE_FIELDS = [
     "dns.from_dhcp", 
     "dns.dns_manual",
     "ntp.from_dhcp",
-    "ntp.ntp_manual"
+    "ntp.ntp_manual",
+    "network_interfaces.[*].ipv4.dhcp",
+    "network_interfaces.[*].ipv4.manual"
 ]
+
+def normalize_fqn(fqn: str) -> str:
+    return re.sub(r"\[\d+\]", "[*]", fqn)
+
+def is_editable_field(fqn: str) -> bool:
+    return normalize_fqn(fqn) in EDITABLE_FIELDS
 
 def join_fqn(parent_fqn: str | None, field_name: str) -> str:
     if parent_fqn:
@@ -25,11 +36,6 @@ def unwrap_optional(field_type: Any) -> Any:
             return args[0]
 
     return field_type
-
-from typing import Any, get_origin, get_args
-
-import ipaddress
-
 
 def parse_ip_string_list(text: str) -> list[str]:
     text = text.strip()
@@ -103,6 +109,57 @@ def convert_string_value(value: str, field_type: Any) -> Any:
     # fallback
     return value
 
+
+def resolve_fqn_owner(
+    root: object,
+    fqn: str,
+) -> tuple[object, str, Any, list[int]]:
+
+    parts = fqn.split(".")
+    owner = root
+
+    indices: list[int] = []
+
+    for part in parts[:-1]:
+        match = _INDEX_RE.match(part)
+
+        if match:
+            index = int(match.group(1))
+            indices.append(index)
+            owner = owner[index]
+        else:
+            owner = getattr(owner, part)
+
+    field_name = parts[-1]
+
+    type_hints = get_type_hints(type(owner))
+    field_type = type_hints.get(field_name)
+
+    return owner, field_name, field_type, indices
+
+'''
+def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
+    parts = fqn.split(".")
+    owner = root
+
+    for part in parts[:-1]:
+        match = _INDEX_RE.match(part)
+
+        if match:
+            index = int(match.group(1))
+            owner = owner[index]
+        else:
+            owner = getattr(owner, part)
+
+    field_name = parts[-1]
+
+    type_hints = get_type_hints(type(owner))
+    field_type = type_hints.get(field_name)
+
+    return owner, field_name, field_type
+'''
+
+'''
 def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
     parts = fqn.split(".")
     owner = root
@@ -116,6 +173,7 @@ def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
     field_type = type_hints.get(field_name)
 
     return owner, field_name, field_type
+'''
 
 def analyze_field_type(field_type: Any) -> tuple[Any, bool, bool]:
     is_optional = False

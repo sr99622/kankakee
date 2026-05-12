@@ -4,7 +4,7 @@ import niquests as requests
 import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 from utils.xml import get_xml_value
 from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from functools import wraps
@@ -332,18 +332,20 @@ def set_imaging_settings(url: str, username: str, password: str, time_offset: in
     return onvif_post(url, body, username, password, time_offset)
 
 
-@safe_run
-def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) -> str:
+def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, manual: List[str]) -> str:
 
-    print(f"SET NETWORK INTERFACES: {network_interface.token}")
+    #print(f"SET NETWORK INTERFACES: {network_interface.token}")
 
     manual = ""
+    '''
     if not network_interface.ipv4.dhcp:
         manual = f"""
             <tt:Manual>
                 <tt:Address>{network_interface.ipv4.manual[0].address}</tt:Address>
                 <tt:PrefixLength>{network_interface.ipv4.manual[0].prefix_length}</tt:PrefixLength>
             </tt:Manual>"""
+    '''
+
     body = f"""
 <tds:SetNetworkInterfaces>
     <tt:InterfaceToken>{network_interface.token}</tt:InterfaceToken>
@@ -354,7 +356,8 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface) 
     </tt:NetworkInterface>
 </tds:SetNetworkInterfaces>""".strip()
     
-    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    return f"THIS IS A TEST: {network_interface.token} MANUAL: {manual}"
+    #return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
