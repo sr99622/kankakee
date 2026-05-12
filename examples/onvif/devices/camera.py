@@ -25,7 +25,7 @@ from datastructures.network import NetworkInterface, DNSInformation, HostnameInf
         parse_network_interfaces_response, parse_dns_response, parse_hostname_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
-from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, NetworkHost, Time, TimeZone, \
+from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
 
 class AuthorizationError(Exception):
@@ -150,30 +150,6 @@ def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
 </tds:SetSystemDateAndTime>""".strip()
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-# when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
-# then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
-# manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
-def set_ntp(camera: Camera, ntp: NTPInformation) -> None:
-    manual_settings = ""
-    if not ntp.from_dhcp:
-        arg = ""
-        manual_settings = ""
-        for manual in ntp.ntp_manual:
-            match manual.type:
-                case 'IPv4':
-                    address = manual.ipv4 if manual.ipv4 else ""
-                    arg = f"<tt:IPv4Address>{address}</tt:IPv4Address>"
-                case 'IPv6':
-                    address = manual.ipv6 if manual.ipv6 else ""
-                    arg = f"<tt:IPv6Address>{address}</tt:IPv6Address>"
-                case 'DNS':
-                    address = manual.dns if manual.dns else ""
-                    arg = f"<tt:DNSname>{address}</tt:DNSname>"
-
-            manual_settings += f"""<tds:NTPManual><tt:Type>{manual.type}</tt:Type>{arg}</tds:NTPManual>""".strip()
-
-    body = f"""<tds:SetNTP><tds:FromDHCP>{str(ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
-    onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 ############################################################################################################
 
 
@@ -431,7 +407,39 @@ def set_dns(camera: Camera) -> str:
 """.strip()
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #return body
+
+# when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
+# then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
+# manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
+def set_ntp(camera: Camera) -> str:
+    manual_settings = ""
+    if not camera.ntp.from_dhcp:
+        arg = ""
+        manual_settings = ""
+        for address_text in camera.ntp.ntp_manual:
+
+            ip_type = "DNS"
+            try:
+                ip = ipaddress.ip_address(address_text)
+                if ip.version == 4:
+                    ip_type = "IPv4"
+                if ip.version == 6:
+                    ip_type = "IPv6"
+            except Exception as ex:
+                pass
+
+            match ip_type:
+                case 'IPv4':
+                    arg = f"<tt:IPv4Address>{ip}</tt:IPv4Address>"
+                case 'IPv6':
+                    arg = f"<tt:IPv6Address>{ip}</tt:IPv6Address>"
+                case 'DNS':
+                    arg = f"<tt:DNSname>{address_text}</tt:DNSname>"
+
+            manual_settings += f"""<tds:NTPManual><tt:Type>{ip_type}</tt:Type>{arg}</tds:NTPManual>""".strip()
+
+    body = f"""<tds:SetNTP><tds:FromDHCP>{str(camera.ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)

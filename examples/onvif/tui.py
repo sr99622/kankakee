@@ -4,7 +4,7 @@ from textual.widgets import Header, Footer, Tree, Input, RichLog
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns
+        set_hostname, set_dns, set_ntp
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from fields import field_descriptions, EDITABLE_FIELDS, resolve_fqn_owner, convert_string_value, \
@@ -207,8 +207,11 @@ class ObjectBrowser(App):
                 case "dns.from_dhcp":
                     set_dns(self.editing_camera)
                 case "dns.dns_manual":
-                    self.debug_log.write("THIS IS A TEST POINT")
-                    self.debug_log.write(set_dns(self.editing_camera))
+                    set_dns(self.editing_camera)
+                case "ntp.from_dhcp":
+                    self.debug_log.write(set_ntp(self.editing_camera))
+                case "ntp.ntp_manual":
+                    self.debug_log.write(set_ntp(self.editing_camera))
 
             self.debug_log.write(msg)
         except Exception as ex:

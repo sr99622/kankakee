@@ -7,7 +7,7 @@ from utils.xml import get_xml_value
 from kankakee import Adapter, NetUtil, Broadcaster
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from datastructures.datetime import NetworkHost, NTPInformation
+from datastructures.datetime import NTPInformation
 from devices.camera import Camera, get_camera, get_system_date_and_time, set_system_date_and_time, \
         get_local_date_and_time, set_ntp, set_network_interfaces, discover
 from datastructures.network import PrefixedIPv4Address

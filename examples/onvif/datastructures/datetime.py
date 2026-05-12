@@ -5,18 +5,20 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 
+'''
 @dataclass
 class NetworkHost:
     type: Optional[str] = None
     ipv4: Optional[str] = None
     ipv6: Optional[str] = None
     dns: Optional[str] = None
+'''
 
 @dataclass
 class NTPInformation:
     from_dhcp: Optional[bool] = None
-    ntp_from_dhcp: list[NetworkHost] = field(default_factory=list)
-    ntp_manual: list[NetworkHost] = field(default_factory=list)
+    ntp_from_dhcp: list[str] = field(default_factory=list)
+    ntp_manual: list[str] = field(default_factory=list)
 
 @dataclass
 class Time:
@@ -105,6 +107,7 @@ def parse_system_date_and_time_response(xml: str) -> SystemDateAndTime:
         local_date_time=parse_datetime(elem.find("tt:LocalDateTime", NS)),
     )
 
+'''
 def parse_network_host(elem: ET.Element) -> NetworkHost:
     return NetworkHost(
         type=text(elem, "tt:Type"),
@@ -112,6 +115,7 @@ def parse_network_host(elem: ET.Element) -> NetworkHost:
         ipv6=text(elem, "tt:IPv6Address"),
         dns=text(elem, "tt:DNSname"),
     )
+'''
     
 def parse_ip_address(elem):
     return (
@@ -131,11 +135,11 @@ def parse_ntp_response(xml: str) -> NTPInformation:
     return NTPInformation(
         from_dhcp=bool_text(ntp_elem, "tt:FromDHCP"),
         ntp_from_dhcp=[
-            parse_network_host(e)
+            parse_ip_address(e)
             for e in ntp_elem.findall("tt:NTPFromDHCP", NS)
         ],
         ntp_manual=[
-            parse_network_host(e)
+            parse_ip_address(e)
             for e in ntp_elem.findall("tt:NTPManual", NS)
         ],
     )

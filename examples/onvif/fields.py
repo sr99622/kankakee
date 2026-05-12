@@ -7,6 +7,8 @@ EDITABLE_FIELDS = [
     "hostname.name",
     "dns.from_dhcp", 
     "dns.dns_manual",
+    "ntp.from_dhcp",
+    "ntp.ntp_manual"
 ]
 
 def join_fqn(parent_fqn: str | None, field_name: str) -> str:
@@ -47,12 +49,13 @@ def parse_ip_string_list(text: str) -> list[str]:
         if not item:
             continue
 
-        try:
-            ip = ipaddress.ip_address(item)
-        except ValueError:
-            raise ValueError(f"Invalid IP address: {item}")
+        #try:
+        #    ip = ipaddress.ip_address(item)
+        #except ValueError:
+        #    raise ValueError(f"Invalid IP address: {item}")
 
-        result.append(str(ip))
+        #result.append(str(ip))
+        result.append(item)
 
     return result
 
