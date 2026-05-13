@@ -12,7 +12,8 @@ from utils.xml import get_xml_value
 from fields import field_descriptions, resolve_fqn_owner, convert_string_value, join_fqn, \
         analyze_field_type, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings
+        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
+        set_audio_encoder_configuration
 
 class ConfirmRebootScreen(ModalScreen[bool]):
     def __init__(self, camera_name: str) -> None:
@@ -118,7 +119,7 @@ class CameraTree(Tree):
         if len(self.root.children) == 1:
             self.root.expand()
 
-    def _add_value(self, parent, name: str, value: object, camera: Camera) -> None:
+    def _add_value(self, parent: TreeNode, name: str, value: object, camera: Camera) -> None:
 
         fqn = join_fqn(self.get_fqn(parent), name)
 
@@ -220,16 +221,6 @@ class ObjectBrowser(App):
             old_value = getattr(self.editing_owner, self.editing_field)
             setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
 
-            '''
-            if is_list:
-                self.debug_log.write(f"list field, item type = {base_type}")
-            else:
-                self.debug_log.write(f"scalar field, type = {base_type}, optional = {is_optional}")
-            self.debug_log.write(f"OLD VALUE: {old_value}")
-            self.debug_log.write(f"EVENT VALUE: {event.value.strip()}")
-            self.debug_log.write(f"CONVERTED STRING VALUE: {convert_string_value(event.value.strip(), self.editing_field_type)}")
-            '''
-
             msg = "Updated successfully.\n"
 
             match normalize_fqn(self.editing_node.data["fqn"]):
@@ -257,6 +248,12 @@ class ObjectBrowser(App):
                     index = self.editing_indicies[-1]
                     profile = self.editing_camera.profiles[index]
                     self.app.debug_log.write(set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings))
+                case "profiles.[*].audio_encoder.encoding" | "profiles.[*].audio_encoder.bitrate" | "profiles.[*].audio_encoder.sample_rate" | \
+                     "profiles.[*].audio_encoder.session_timeout" | "profiles.[*].audio_encoder.multicast.port" | \
+                     "profiles.[*].audio_encoder.multicast.ttl":
+                    index = self.editing_indicies[-1]
+                    profile = self.editing_camera.profiles[index]
+                    self.app.debug_log.write(set_audio_encoder_configuration(self.editing_camera, profile.audio_encoder))
 
             self.debug_log.write(msg)
         except Exception as ex:
@@ -301,7 +298,6 @@ class ObjectBrowser(App):
         self.edit_input = Input(id="edit_box", placeholder="New value")
         self.edit_input.add_class("hidden")
         self.debug_log = RichLog(id="debug_log", highlight=True, wrap=True)
-        #self.debug_log = Log(id="debug_log", highlight=True)
 
         yield Header()
         with Horizontal(id="main"):

@@ -286,7 +286,7 @@ def set_video_encoder_configuration(url: str, username: str, password: str, time
     return onvif_post(url, body, username, password, time_offset)
 
 
-def set_audio_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: AudioEncoderConfiguration) -> str:
+def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfiguration) -> str:
     multicast_addr = ""
     if encoder.multicast.address_type == "IPv4":
         multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
@@ -314,10 +314,13 @@ def set_audio_encoder_configuration(url: str, username: str, password: str, time
     <trt:ForcePersistence>true</trt:ForcePersistence>
 </trt:SetAudioEncoderConfiguration>""".strip()
 
-    return onvif_post(url, body, username, password, time_offset)
+    #return body
+    return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
     
 def set_imaging_settings(camera: Camera, video_source_token: str, imaging: ImagingSettings) -> str:
+    ir_cut_filter = f"""
+        <tt:IrCutFilter>{imaging.ir_cut_filter}</tt:IrCutFilter>""" if imaging.ir_cut_filter else ""
     body = f"""
 <timg:SetImagingSettings>
     <timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken>
@@ -325,7 +328,7 @@ def set_imaging_settings(camera: Camera, video_source_token: str, imaging: Imagi
         <tt:Brightness>{int(imaging.brightness)}</tt:Brightness>
         <tt:ColorSaturation>{int(imaging.color_saturation)}</tt:ColorSaturation>
         <tt:Contrast>{int(imaging.contrast)}</tt:Contrast>
-        <tt:Sharpness>{int(imaging.sharpness)}</tt:Sharpness>
+        <tt:Sharpness>{int(imaging.sharpness)}</tt:Sharpness>{ir_cut_filter}
     </timg:ImagingSettings>
 </timg:SetImagingSettings>""".strip()
 

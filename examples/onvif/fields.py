@@ -19,6 +19,12 @@ EDITABLE_FIELDS = [
     "profiles.[*].imaging_settings.contrast",
     "profiles.[*].imaging_settings.sharpness",
     "profiles.[*].imaging_settings.ir_cut_filter",
+    "profiles.[*].audio_encoder.encoding",
+    "profiles.[*].audio_encoder.bitrate",
+    "profiles.[*].audio_encoder.sample_rate",
+    "profiles.[*].audio_encoder.session_timeout",
+    "profiles.[*].audio_encoder.multicast.port",
+    "profiles.[*].audio_encoder.multicast.ttl",
 ]
 
 def normalize_fqn(fqn: str) -> str:
@@ -115,70 +121,22 @@ def convert_string_value(value: str, field_type: Any) -> Any:
     return value
 
 
-def resolve_fqn_owner(
-    root: object,
-    fqn: str,
-) -> tuple[object, str, Any, list[int]]:
-
+def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any, list[int]]:
     parts = fqn.split(".")
     owner = root
-
     indices: list[int] = []
-
     for part in parts[:-1]:
         match = _INDEX_RE.match(part)
-
         if match:
             index = int(match.group(1))
             indices.append(index)
             owner = owner[index]
         else:
             owner = getattr(owner, part)
-
     field_name = parts[-1]
-
     type_hints = get_type_hints(type(owner))
     field_type = type_hints.get(field_name)
-
     return owner, field_name, field_type, indices
-
-'''
-def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
-    parts = fqn.split(".")
-    owner = root
-
-    for part in parts[:-1]:
-        match = _INDEX_RE.match(part)
-
-        if match:
-            index = int(match.group(1))
-            owner = owner[index]
-        else:
-            owner = getattr(owner, part)
-
-    field_name = parts[-1]
-
-    type_hints = get_type_hints(type(owner))
-    field_type = type_hints.get(field_name)
-
-    return owner, field_name, field_type
-'''
-
-'''
-def resolve_fqn_owner(root: object, fqn: str) -> tuple[object, str, Any]:
-    parts = fqn.split(".")
-    owner = root
-
-    for part in parts[:-1]:
-        owner = getattr(owner, part)
-
-    field_name = parts[-1]
-
-    type_hints = get_type_hints(type(owner))
-    field_type = type_hints.get(field_name)
-
-    return owner, field_name, field_type
-'''
 
 def analyze_field_type(field_type: Any) -> tuple[Any, bool, bool]:
     is_optional = False
