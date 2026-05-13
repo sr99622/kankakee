@@ -336,28 +336,44 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, 
 
     #print(f"SET NETWORK INTERFACES: {network_interface.token}")
 
-    manual = ""
-    '''
-    if not network_interface.ipv4.dhcp:
-        manual = f"""
+    #if len(manual):
+    #    network_interface.ipv4.dhcp = False
+
+    arg = ""
+    for ip_address_string in manual:
+        #arg += ip_address_string
+
+
+        address = ip_address_string.split("/")[0].strip()
+        prefix_length = ip_address_string.split("/")[1].strip()
+
+        ip_address_xml = f"""
             <tt:Manual>
-                <tt:Address>{network_interface.ipv4.manual[0].address}</tt:Address>
-                <tt:PrefixLength>{network_interface.ipv4.manual[0].prefix_length}</tt:PrefixLength>
+                <tt:Address>{address}</tt:Address>
+                <tt:PrefixLength>{prefix_length}</tt:PrefixLength>
             </tt:Manual>"""
-    '''
+    
+        arg += ip_address_xml
 
     body = f"""
 <tds:SetNetworkInterfaces>
     <tt:InterfaceToken>{network_interface.token}</tt:InterfaceToken>
     <tt:NetworkInterface>
         <tt:IPv4>
-            <tt:DHCP>{str(network_interface.ipv4.dhcp).lower()}</tt:DHCP>{manual}
+            <tt:DHCP>{str(network_interface.ipv4.dhcp).lower()}</tt:DHCP>{arg}
         </tt:IPv4>
     </tt:NetworkInterface>
 </tds:SetNetworkInterfaces>""".strip()
     
-    return f"THIS IS A TEST: {network_interface.token} MANUAL: {manual}"
-    #return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    #return body
+    #return f"THIS IS A TEST: {network_interface.token} len(manual): {len(manual)} dhcp: {network_interface.ipv4.dhcp}"
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+def reboot(camera: Camera) -> str:
+    body = f"""
+<tds:SystemReboot/>
+"""
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""

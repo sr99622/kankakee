@@ -3,16 +3,13 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Tree, Input, RichLog
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
-from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns, set_ntp, set_network_interfaces
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
-from fields import field_descriptions, EDITABLE_FIELDS, resolve_fqn_owner, convert_string_value, \
-        join_fqn, analyze_field_type, is_editable_field, normalize_fqn
-from typing import Any, get_args, get_origin, Union, Optional
-import types
-import ipaddress
-import re
+from utils.xml import get_xml_value
+from fields import field_descriptions, resolve_fqn_owner, convert_string_value, join_fqn, \
+        analyze_field_type, is_editable_field, normalize_fqn
+from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
+        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot
 
 class CameraTree(Tree):
     def __init__(self) -> None:
@@ -21,8 +18,8 @@ class CameraTree(Tree):
 
     BINDINGS = [
         ("]", "toggle_recursive", "Open/close all"),
+        ("r", "reboot", "Reboot Selected")
     ]
-
 
     def get_fqn(self, node: TreeNode) -> str:
         parts = []
@@ -39,7 +36,7 @@ class CameraTree(Tree):
     
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.app.debug_log.clear()
-        if event.node.data:
+        if event.node.data and event.node.data.get("fqn"):
             self.app.debug_log.write(event.node.data["fqn"])
             if desc := field_descriptions.get(event.node.data["fqn"]):
                 self.app.debug_log.write(desc)
@@ -50,6 +47,16 @@ class CameraTree(Tree):
         label.append(f"{field}: ")
         label.append(str(value))
         return label
+    
+    def action_reboot(self) -> None:
+        if node := self.cursor_node:
+            if node.data:
+                try:
+                    xml = reboot(node.data["camera"])
+                    msg = get_xml_value(xml, "//s:Body//tds:SystemRebootResponse//tds:Message")
+                    self.app.debug_log.write(f"{node.label}: {msg}")
+                except Exception as ex:
+                    self.app.debug_log.write(f"{ex}")
 
     def action_toggle_recursive(self) -> None:
         node = self.cursor_node
@@ -73,6 +80,7 @@ class CameraTree(Tree):
     def add_camera(self, camera: Camera) -> None:
         label = camera.name
         camera_node = self.root.add(label, expand=False)
+        camera_node.data = { "camera": camera }
         for field in fields(camera):
             value = getattr(camera, field.name)
             self._add_value(camera_node, field.name, value, camera)
@@ -200,21 +208,16 @@ class ObjectBrowser(App):
                         msg += "Please reboot the camera to enact the update\n"
                 case "hostname.name":
                     set_hostname(self.editing_camera)
-                case "dns.from_dhcp":
+                case "dns.from_dhcp" | "dns.dns_manual":
                     set_dns(self.editing_camera)
-                case "dns.dns_manual":
-                    set_dns(self.editing_camera)
-                case "ntp.from_dhcp":
+                case "ntp.from_dhcp" | "ntp.ntp_manual":
                     self.debug_log.write(set_ntp(self.editing_camera))
-                case "ntp.ntp_manual":
-                    self.debug_log.write(set_ntp(self.editing_camera))
-                case "network_interfaces.[*].ipv4.dhcp":
+                case "network_interfaces.[*].ipv4.dhcp" | "network_interfaces.[*].ipv4.manual":
                     index = self.editing_indicies[-1]
                     interface = self.editing_camera.network_interfaces[index]
                     manual = interface.ipv4.manual
-                    self.debug_log.write(set_network_interfaces(self.editing_camera, interface, manual))
-                case "network_interfaces.[*].ipv4.manual":
-                    self.debug_log.write("network_interfaces.[*].ipv4.manual")
+                    if "RebootNeeded" in set_network_interfaces(self.editing_camera, interface, manual):
+                        msg += "Please reboot the camera to enact the update\n"
 
             self.debug_log.write(msg)
         except Exception as ex:
