@@ -317,7 +317,7 @@ def set_audio_encoder_configuration(url: str, username: str, password: str, time
     return onvif_post(url, body, username, password, time_offset)
 
     
-def set_imaging_settings(url: str, username: str, password: str, time_offset: int, video_source_token: str, imaging: ImagingSettings) -> str:
+def set_imaging_settings(camera: Camera, video_source_token: str, imaging: ImagingSettings) -> str:
     body = f"""
 <timg:SetImagingSettings>
     <timg:VideoSourceToken>{video_source_token}</timg:VideoSourceToken>
@@ -329,30 +329,20 @@ def set_imaging_settings(url: str, username: str, password: str, time_offset: in
     </timg:ImagingSettings>
 </timg:SetImagingSettings>""".strip()
 
-    return onvif_post(url, body, username, password, time_offset)
+    return onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 
 def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, manual: List[str]) -> str:
 
-    #print(f"SET NETWORK INTERFACES: {network_interface.token}")
-
-    #if len(manual):
-    #    network_interface.ipv4.dhcp = False
-
     arg = ""
     for ip_address_string in manual:
-        #arg += ip_address_string
-
-
         address = ip_address_string.split("/")[0].strip()
         prefix_length = ip_address_string.split("/")[1].strip()
-
         ip_address_xml = f"""
             <tt:Manual>
                 <tt:Address>{address}</tt:Address>
                 <tt:PrefixLength>{prefix_length}</tt:PrefixLength>
             </tt:Manual>"""
-    
         arg += ip_address_xml
 
     body = f"""
@@ -365,8 +355,6 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, 
     </tt:NetworkInterface>
 </tds:SetNetworkInterfaces>""".strip()
     
-    #return body
-    #return f"THIS IS A TEST: {network_interface.token} len(manual): {len(manual)} dhcp: {network_interface.ipv4.dhcp}"
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def reboot(camera: Camera) -> str:

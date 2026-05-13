@@ -3,13 +3,30 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Tree, Input, RichLog
 from textual.widgets.tree import TreeNode
 from textual.binding import Binding
+from textual.screen import ModalScreen
+from textual.widgets import Button, Label
+from textual.containers import Vertical
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
 from fields import field_descriptions, resolve_fqn_owner, convert_string_value, join_fqn, \
         analyze_field_type, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot
+        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings
+
+class ConfirmRebootScreen(ModalScreen[bool]):
+    def __init__(self, camera_name: str) -> None:
+        super().__init__()
+        self.camera_name = camera_name
+
+    def compose(self):
+        with Vertical(id="confirm_dialog"):
+            yield Label(f"Reboot camera '{self.camera_name}'?")
+            yield Button("Cancel", id="cancel", variant="primary")
+            yield Button("Reboot", id="reboot", variant="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "reboot")
 
 class CameraTree(Tree):
     def __init__(self) -> None:
@@ -50,13 +67,27 @@ class CameraTree(Tree):
     
     def action_reboot(self) -> None:
         if node := self.cursor_node:
-            if node.data:
-                try:
-                    xml = reboot(node.data["camera"])
-                    msg = get_xml_value(xml, "//s:Body//tds:SystemRebootResponse//tds:Message")
-                    self.app.debug_log.write(f"{node.label}: {msg}")
-                except Exception as ex:
-                    self.app.debug_log.write(f"{ex}")
+            if node.parent.parent is None:
+                if not node.data:
+                    self.app.debug_log.write(f"Error: missing node data for camera")
+                    return
+                
+                camera = node.data["camera"]
+                self.app.push_screen(
+                    ConfirmRebootScreen(camera.name),
+                    lambda confirmed: self._do_reboot(camera) if confirmed else None,
+                )
+
+            else:
+                self.app.debug_log.write(f"Reboot action can only be performed when a camera node is selected")
+
+    def _do_reboot(self, camera: Camera) -> None:
+        try:
+            xml = reboot(camera)
+            msg = get_xml_value(xml, "//s:Body//tds:SystemRebootResponse//tds:Message")
+            self.app.debug_log.write(f"{camera.name}: {msg}")
+        except Exception as ex:
+            self.app.debug_log.write(f"{ex}")
 
     def action_toggle_recursive(self) -> None:
         node = self.cursor_node
@@ -163,10 +194,12 @@ class ObjectBrowser(App):
         padding: 0 1;
     }
 
-    #edit_area {
-        dock: bottom;
-        height: 12;
-        border: solid yellow;
+    #confirm_dialog {
+        width: 50;
+        height: auto;
+        border: solid red;
+        padding: 1 2;
+        background: $surface;
     }
 
     .hidden {
@@ -218,6 +251,12 @@ class ObjectBrowser(App):
                     manual = interface.ipv4.manual
                     if "RebootNeeded" in set_network_interfaces(self.editing_camera, interface, manual):
                         msg += "Please reboot the camera to enact the update\n"
+                case "profiles.[*].imaging_settings.brightness" | "profiles.[*].imaging_settings.color_saturation" | \
+                        "profiles.[*].imaging_settings.contrast" | "profiles.[*].imaging_settings.sharpness" | \
+                        "profiles.[*].imaging_settings.ir_cut_filter":
+                    index = self.editing_indicies[-1]
+                    profile = self.editing_camera.profiles[index]
+                    self.app.debug_log.write(set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings))
 
             self.debug_log.write(msg)
         except Exception as ex:

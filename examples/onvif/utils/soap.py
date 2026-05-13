@@ -85,7 +85,13 @@ def build_soap_envelope(body: str, username: str, password: str, time_offset: in
 
 def onvif_post(url: str, body: str, username: str, password: str, time_offset: int) -> str:
     soap = build_soap_envelope(body, username, password, time_offset)
-    response = requests.post(url, data=soap, timeout=POST_TIMEOUT)
+    headers = {
+        "User-Agent": "Generic",
+        "Connection": "Close",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/soap+xml; charset=utf-8",
+    }
+    response = requests.post(url, data=soap, headers=headers, timeout=POST_TIMEOUT)
     fault = parse_soap_fault(response.text)
     if fault:
         raise ValueError(f"Input: {body}\n\nFault: {fault}")

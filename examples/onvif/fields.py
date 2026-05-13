@@ -13,7 +13,12 @@ EDITABLE_FIELDS = [
     "ntp.from_dhcp",
     "ntp.ntp_manual",
     "network_interfaces.[*].ipv4.dhcp",
-    "network_interfaces.[*].ipv4.manual"
+    "network_interfaces.[*].ipv4.manual",
+    "profiles.[*].imaging_settings.brightness",
+    "profiles.[*].imaging_settings.color_saturation",
+    "profiles.[*].imaging_settings.contrast",
+    "profiles.[*].imaging_settings.sharpness",
+    "profiles.[*].imaging_settings.ir_cut_filter",
 ]
 
 def normalize_fqn(fqn: str) -> str:
