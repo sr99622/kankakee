@@ -7,6 +7,31 @@ from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 from .imaging import ImagingOptions, ImagingSettings, Bounds
 
 @dataclass
+class AudioDecoderConfiguration:
+    token: Optional[str] = None
+    name: Optional[str] = None
+    use_count: Optional[int] = None
+
+@dataclass
+class AudioOutputConfiguration:
+    token: Optional[str] = None
+    name: Optional[str] = None
+    use_count: Optional[int] = None
+    output_token: Optional[str] = None
+    send_primacy: Optional[str] = None
+    output_level: Optional[int] = None
+
+@dataclass
+class AudioDecoderCodecOptions:
+    bitrate_list: list[int] = field(default_factory=list)
+    sample_rate_list: list[int] = field(default_factory=list)
+
+@dataclass
+class AudioDecoderConfigurationOptions:
+    aac: Optional[AudioDecoderCodecOptions] = None
+    g711: Optional[AudioDecoderCodecOptions] = None
+    g726: Optional[AudioDecoderCodecOptions] = None
+@dataclass
 class VideoSourceConfiguration:
     token: Optional[str] = None
     name: Optional[str] = None
@@ -151,6 +176,9 @@ class Profile:
     audio_source: Optional[AudioSourceConfiguration] = None
     audio_encoder: Optional[AudioEncoderConfiguration] = None
     audio_encoder_options: Optional[AudioEncoderConfigurationOptions] = None
+    audio_output: Optional[AudioOutputConfiguration] = None
+    audio_decoder: Optional[AudioDecoderConfiguration] = None
+    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
     ptz: Optional[PTZConfiguration] = None
     video_analytics: Optional[VideoAnalyticsConfiguration] = None
     metadata: Optional[MetadataConfiguration] = None
@@ -451,3 +479,98 @@ def parse_audio_encoder_configuration_options_response(xml: str) -> list[AudioEn
         parse_audio_encoder_configuration_option(option)
         for option in options_elem.findall("tt:Options", NS)
     ]
+
+
+def parse_int_list(elem: Optional[ET.Element]) -> list[int]:
+    if elem is None:
+        return []
+
+    return [
+        int(e.text.strip())
+        for e in elem.findall("tt:Items", NS)
+        if e.text
+    ]
+
+
+def parse_audio_decoder_codec_options(
+    elem: Optional[ET.Element],
+) -> Optional[AudioDecoderCodecOptions]:
+    if elem is None:
+        return None
+
+    return AudioDecoderCodecOptions(
+        bitrate_list=parse_int_list(elem.find("tt:Bitrate", NS)),
+        sample_rate_list=parse_int_list(elem.find("tt:SampleRateRange", NS)),
+    )
+
+
+def parse_audio_decoder_configuration(elem: ET.Element) -> AudioDecoderConfiguration:
+    return AudioDecoderConfiguration(
+        token=attr(elem, "token"),
+        name=text(elem, "tt:Name"),
+        use_count=int_text(elem, "tt:UseCount"),
+    )
+
+
+def parse_audio_output_configuration(elem: ET.Element) -> AudioOutputConfiguration:
+    return AudioOutputConfiguration(
+        token=attr(elem, "token"),
+        name=text(elem, "tt:Name"),
+        use_count=int_text(elem, "tt:UseCount"),
+        output_token=text(elem, "tt:OutputToken"),
+        send_primacy=text(elem, "tt:SendPrimacy"),
+        output_level=int_text(elem, "tt:OutputLevel"),
+    )
+
+
+def parse_audio_decoder_configurations_response(
+    xml: str,
+) -> list[AudioDecoderConfiguration]:
+    root = ET.fromstring(xml)
+
+    elems = root.findall(
+        ".//trt:GetAudioDecoderConfigurationsResponse/trt:Configurations",
+        NS,
+    )
+
+    return [
+        parse_audio_decoder_configuration(elem)
+        for elem in elems
+    ]
+
+
+def parse_audio_output_configurations_response(
+    xml: str,
+) -> list[AudioOutputConfiguration]:
+    root = ET.fromstring(xml)
+
+    elems = root.findall(
+        ".//trt:GetAudioOutputConfigurationsResponse/trt:Configurations",
+        NS,
+    )
+
+    return [
+        parse_audio_output_configuration(elem)
+        for elem in elems
+    ]
+
+
+def parse_audio_decoder_configuration_options_response(
+    xml: str,
+) -> AudioDecoderConfigurationOptions:
+    root = ET.fromstring(xml)
+
+    options = root.find(
+        ".//trt:GetAudioDecoderConfigurationOptionsResponse/trt:Options",
+        NS,
+    )
+    if options is None:
+        raise ValueError(
+            "Could not find trt:GetAudioDecoderConfigurationOptionsResponse/trt:Options"
+        )
+
+    return AudioDecoderConfigurationOptions(
+        aac=parse_audio_decoder_codec_options(options.find("tt:AACDecOptions", NS)),
+        g711=parse_audio_decoder_codec_options(options.find("tt:G711DecOptions", NS)),
+        g726=parse_audio_decoder_codec_options(options.find("tt:G726DecOptions", NS)),
+    )

@@ -19,8 +19,12 @@ from collections.abc import Callable
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
+        AudioOutputConfiguration, AudioDecoderConfiguration, AudioDecoderConfigurationOptions, \
         parse_profiles_response, parse_video_encoder_configuration_options_response, \
-        parse_audio_encoder_configuration_options_response
+        parse_audio_encoder_configuration_options_response, parse_audio_output_configurations_response, \
+        parse_audio_decoder_configurations_response, parse_audio_output_configurations_response, \
+        parse_audio_decoder_configuration_options_response
+
 from datastructures.network import NetworkInterface, DNSInformation, HostnameInformation, \
         parse_network_interfaces_response, parse_dns_response, parse_hostname_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
@@ -54,6 +58,9 @@ class Camera:
     dns: Optional[DNSInformation] = None
     ntp: Optional[NTPInformation] = None
     hostname: Optional[HostnameInformation] = None
+    audio_output: list[AudioOutputConfiguration] = None
+    audio_decoder: Optional[AudioDecoderConfiguration] = None
+    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
 
 def safe_run(func):
     @wraps(func)
@@ -226,6 +233,23 @@ def get_ntp(camera: Camera) -> None:
     body = f"""<tds:GetNTP/>"""
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "ntp", parse_ntp_response(xml))
+
+def get_audio_decoder_configurations(camera: Camera) -> None:
+    try:
+        body = f"""<trt:GetAudioDecoderConfigurations/>"""
+        xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+        print(xml)
+        setattr(camera, "audio_decoder", parse_audio_decoder_configurations_response(xml))
+        body = f"""<trt:GetAudioOutputConfigurations/>"""
+        xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+        setattr(camera, "audio_output", parse_audio_output_configurations_response(xml))
+        print(xml)
+        body = f"""<trt:GetAudioDecoderConfigurationOptions/>"""
+        xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+        setattr(camera, "audio_decoder_options", parse_audio_decoder_configuration_options_response(xml))
+        print(xml)
+    except Exception as ex:
+        ...
 
 @safe_run
 def get_imaging_settings(camera: Camera, profile: Profile) -> None:
@@ -513,6 +537,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     get_dns(camera)
     get_ntp(camera)
     get_profiles(camera)
+    get_audio_decoder_configurations(camera)
     for profile in camera.profiles:
         get_stream_uri(camera, profile)
         get_snapshot_uri(camera, profile)

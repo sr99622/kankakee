@@ -10,11 +10,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datastructures.datetime import NTPInformation
 from devices.camera import Camera, get_camera, get_system_date_and_time, set_system_date_and_time, \
         get_local_date_and_time, set_ntp, set_network_interfaces, discover
-from datastructures.network import PrefixedIPv4Address
 
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
     print("*", camera.name, camera.dns)
+    print(f"AUDIO OUTPUT: {camera.audio_output}")
+    print(f"AUDIO DECODER: {camera.audio_decoder}")
+    print(f"AUDIO DECODER OPTIONS: {camera.audio_decoder_options}")
+    print("\n\n\n\n")
 
 if __name__ == "__main__":
     cameras = []
