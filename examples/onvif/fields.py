@@ -25,6 +25,18 @@ EDITABLE_FIELDS = [
     "profiles.[*].audio_encoder.session_timeout",
     "profiles.[*].audio_encoder.multicast.port",
     "profiles.[*].audio_encoder.multicast.ttl",
+    "profiles.[*].audio_encoder.multicast.ip_address",
+    "profiles.[*].video_encoder.session_timeout",
+    "profiles.[*].video_encoder.encoding",
+    "profiles.[*].video_encoder.profile",
+    "profiles.[*].video_encoder.gov_length",
+    "profiles.[*].video_encoder.quality",
+    "profiles.[*].video_encoder.multicast.port",
+    "profiles.[*].video_encoder.multicast.ttl",
+    "profiles.[*].video_encoder.multicast.ip_address",
+    "profiles.[*].video_encoder.rate_control.frame_rate_limit",
+    "profiles.[*].video_encoder.rate_control.encoding_interval",
+    "profiles.[*].video_encoder.rate_control.bitrate_limit",
 ]
 
 def normalize_fqn(fqn: str) -> str:

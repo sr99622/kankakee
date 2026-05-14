@@ -27,9 +27,7 @@ class RateControl:
 
 @dataclass
 class MulticastConfiguration:
-    address_type: Optional[str] = None
-    ipv4_address: Optional[str] = None
-    ipv6_address: Optional[str] = None
+    ip_address: Optional[str] = None
     port: Optional[int] = None
     ttl: Optional[int] = None
     auto_start: Optional[bool] = None
@@ -40,7 +38,8 @@ class VideoEncoderConfiguration:
     name: Optional[str] = None
     use_count: Optional[int] = None
     encoding: Optional[str] = None
-    resolution: Resolution = field(default_factory=Resolution)
+    #resolution: Resolution = field(default_factory=Resolution)
+    resolution: Optional[str] = None
     quality: Optional[float] = None
     rate_control: RateControl = field(default_factory=RateControl)
     multicast: MulticastConfiguration = field(default_factory=MulticastConfiguration)
@@ -164,14 +163,23 @@ class Profile:
 class GetProfilesResponse:
     profiles: list[Profile] = field(default_factory=list)
 
+
 def parse_multicast(elem: Optional[ET.Element]) -> MulticastConfiguration:
     if elem is None:
         return MulticastConfiguration()
 
+    address_type = text(elem, "tt:Address/tt:Type")
+    ipv4_address = text(elem, "tt:Address/tt:IPv4Address")
+    ipv6_address = text(elem, "tt:Address/tt:IPv6Address")
+    ip_address = None
+    if address_type == "IPv4":
+        ip_address = ipv4_address
+    elif address_type == "IPv6":
+        ip_address = ipv6_address
+    else:
+        ip_address = ipv4_address or ipv6_address
     return MulticastConfiguration(
-        address_type=text(elem, "tt:Address/tt:Type"),
-        ipv4_address=text(elem, "tt:Address/tt:IPv4Address"),
-        ipv6_address=text(elem, "tt:Address/tt:IPv6Address"),
+        ip_address=ip_address,
         port=int_text(elem, "tt:Port"),
         ttl=int_text(elem, "tt:TTL"),
         auto_start=bool_text(elem, "tt:AutoStart"),
@@ -212,15 +220,27 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
 
         video_encoder = p.find("tt:VideoEncoderConfiguration", NS)
         if video_encoder is not None:
+            encoding = text(video_encoder, "tt:Encoding")
+            gov_length = None
+            encoder_profile = None
+            if encoding == "H264":
+                gov_length=int_text(video_encoder, "tt:H264/tt:GovLength")
+                encoder_profile=text(video_encoder, "tt:H264/tt:H264Profile")
+            elif encoding == "MPEG4":
+                gov_length=int_text(video_encoder, "tt:H264/tt:GovLength")
+                encoder_profile=text(video_encoder, "tt:H264/tt:H264Profile")
+                
             profile.video_encoder = VideoEncoderConfiguration(
                 token=attr(video_encoder, "token"),
                 name=text(video_encoder, "tt:Name"),
                 use_count=int_text(video_encoder, "tt:UseCount"),
-                encoding=text(video_encoder, "tt:Encoding"),
-                resolution=Resolution(
-                    width=int_text(video_encoder, "tt:Resolution/tt:Width"),
-                    height=int_text(video_encoder, "tt:Resolution/tt:Height"),
-                ),
+                #encoding=text(video_encoder, "tt:Encoding"),
+                encoding=encoding,
+                #resolution=Resolution(
+                #    width=int_text(video_encoder, "tt:Resolution/tt:Width"),
+                #    height=int_text(video_encoder, "tt:Resolution/tt:Height"),
+                #),
+                resolution=f"{int_text(video_encoder, "tt:Resolution/tt:Width")} x {int_text(video_encoder, "tt:Resolution/tt:Height")}",
                 quality=float_text(video_encoder, "tt:Quality"),
                 rate_control=RateControl(
                     frame_rate_limit=int_text(
@@ -235,8 +255,10 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
                 ),
                 multicast=parse_multicast(video_encoder.find("tt:Multicast", NS)),
                 session_timeout=text(video_encoder, "tt:SessionTimeout"),
-                gov_length=int_text(video_encoder, "tt:H264/tt:GovLength"),
-                profile=text(video_encoder, "tt:H264/tt:H264Profile")
+                #gov_length=int_text(video_encoder, "tt:H264/tt:GovLength"),
+                #profile=text(video_encoder, "tt:H264/tt:H264Profile"),
+                gov_length=gov_length,
+                profile=encoder_profile,
             )
 
         audio_source = p.find("tt:AudioSourceConfiguration", NS)

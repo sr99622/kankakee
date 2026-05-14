@@ -239,20 +239,38 @@ def get_imaging_options(camera: Camera, profile: Profile) -> None:
     xml = onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(profile, "imaging_options", parse_imaging_options_response(xml))
 
-def set_video_encoder_configuration(url: str, username: str, password: str, time_offset: int, encoder: VideoEncoderConfiguration) -> str:
-    multicast_addr = ""
-    if encoder.multicast.address_type == "IPv4":
-        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
-    elif encoder.multicast.address_type == "IPv6":
-        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
 
-    h264 = ""
+    ip = ipaddress.ip_address(encoder.multicast.ip_address)
+    if ip.version == 4:
+        address_xml = f"""
+            <tt:Address>
+                <tt:Type>IPv4</tt:Type>
+                <tt:IPv4Address>{ip}</tt:IPv4Address>
+            </tt:Address>"""
+    else:
+        address_xml = f"""
+            <tt:Address>
+                <tt:Type>IPv6</tt:Type>
+                <tt:IPv6Address>{ip}</tt:IPv6Address>
+            </tt:Address>"""
+
+    encoder_paramters = ""
     if encoder.encoding == "H264":
-        h264 = f"""
+        encoder_paramters = f"""
         <tt:H264>
-            <tt:GovLength>{encoder.gov_length}</tt:GovLength>
-            <tt:H264Profile>{encoder.profile}</tt:H264Profile>
+            <tt:GovLength>{encoder.gov_length if encoder.gov_length else 30}</tt:GovLength>
+            <tt:H264Profile>{encoder.profile if encoder.profile in [ "Baseline", "Main", "Extended", "High"] else "High"}</tt:H264Profile>
         </tt:H264>"""
+    elif encoder.encoding == "MPEG4":
+        encoder_paramters = f"""
+        <tt:MPEG4>
+            <tt:GovLength>{encoder.gov_length if encoder.gov_length else 30}</tt:GovLength>
+            <tt:MPEG4Profile>{encoder.profile if encoder.profile in ["SP", "ASP"] else "SP"}</tt:MPEG4Profile>
+        </tt:MPEG4>"""
+
+    width = encoder.resolution.split("x")[0].strip()
+    height = encoder.resolution.split("x")[1].strip()
 
     body = f"""
 <trt:SetVideoEncoderConfiguration>
@@ -261,19 +279,16 @@ def set_video_encoder_configuration(url: str, username: str, password: str, time
         <tt:UseCount>{encoder.use_count}</tt:UseCount>
         <tt:Encoding>{encoder.encoding}</tt:Encoding>
         <tt:Resolution>
-            <tt:Width>{encoder.resolution.width}</tt:Width>
-            <tt:Height>{encoder.resolution.height}</tt:Height>
+            <tt:Width>{width}</tt:Width>
+            <tt:Height>{height}</tt:Height>
         </tt:Resolution>
         <tt:Quality>{encoder.quality}</tt:Quality>
         <tt:RateControl>
             <tt:FrameRateLimit>{encoder.rate_control.frame_rate_limit}</tt:FrameRateLimit>
             <tt:EncodingInterval>{encoder.rate_control.encoding_interval}</tt:EncodingInterval>
             <tt:BitrateLimit>{encoder.rate_control.bitrate_limit}</tt:BitrateLimit>
-        </tt:RateControl>{h264}
-        <tt:Multicast>
-            <tt:Address>
-                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
-            </tt:Address>
+        </tt:RateControl>{encoder_paramters}
+        <tt:Multicast>{address_xml}
             <tt:Port>{encoder.multicast.port}</tt:Port>
             <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
             <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>
@@ -283,15 +298,24 @@ def set_video_encoder_configuration(url: str, username: str, password: str, time
     <trt:ForcePersistence>true</trt:ForcePersistence>
 </trt:SetVideoEncoderConfiguration>""".strip()
 
-    return onvif_post(url, body, username, password, time_offset)
+    return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 
 def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfiguration) -> str:
-    multicast_addr = ""
-    if encoder.multicast.address_type == "IPv4":
-        multicast_addr = f"""<tt:IPv4Address>{encoder.multicast.ipv4_address}</tt:IPv4Address>"""
-    elif encoder.multicast.address_type == "IPv6":
-        multicast_addr = f"""<tt:IPv6Address>{encoder.multicast.ipv6_address}</tt:IPv6Address>"""
+    
+    ip = ipaddress.ip_address(encoder.multicast.ip_address)
+    if ip.version == 4:
+        address_xml = f"""
+            <tt:Address>
+                <tt:Type>IPv4</tt:Type>
+                <tt:IPv4Address>{ip}</tt:IPv4Address>
+            </tt:Address>"""
+    else:
+        address_xml = f"""
+            <tt:Address>
+                <tt:Type>IPv6</tt:Type>
+                <tt:IPv6Address>{ip}</tt:IPv6Address>
+            </tt:Address>"""
 
     body = f"""
 <trt:SetAudioEncoderConfiguration>
@@ -301,10 +325,7 @@ def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfigu
         <tt:Encoding>{encoder.encoding}</tt:Encoding>
         <tt:Bitrate>{encoder.bitrate}</tt:Bitrate>
         <tt:SampleRate>{encoder.sample_rate}</tt:SampleRate>
-        <tt:Multicast>
-            <tt:Address>
-                <tt:Type>{encoder.multicast.address_type}</tt:Type>{multicast_addr}
-            </tt:Address>
+        <tt:Multicast>{address_xml}
             <tt:Port>{encoder.multicast.port}</tt:Port>
             <tt:TTL>{encoder.multicast.ttl}</tt:TTL>
             <tt:AutoStart>{str(encoder.multicast.auto_start).lower()}</tt:AutoStart>

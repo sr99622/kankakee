@@ -13,7 +13,7 @@ from fields import field_descriptions, resolve_fqn_owner, convert_string_value, 
         analyze_field_type, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
-        set_audio_encoder_configuration
+        set_audio_encoder_configuration, set_video_encoder_configuration
 
 class ConfirmRebootScreen(ModalScreen[bool]):
     def __init__(self, camera_name: str) -> None:
@@ -123,7 +123,7 @@ class CameraTree(Tree):
 
         fqn = join_fqn(self.get_fqn(parent), name)
 
-        if is_editable_field(fqn):
+        if is_editable_field(fqn) and value is not None:
             node = parent.add_leaf(self._make_editable_label(name, str(value)))
             node.data = {"camera": camera, "field": name, "fqn": fqn}
             return
@@ -222,38 +222,46 @@ class ObjectBrowser(App):
             setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
 
             msg = "Updated successfully.\n"
+            fqn = normalize_fqn(self.editing_node.data["fqn"])
 
-            match normalize_fqn(self.editing_node.data["fqn"]):
-                case "network_gateway":
-                    if "RebootNeeded" in set_network_default_gateway(self.editing_camera):
-                        msg += "Please reboot the camera to enact the update.\n"              
-                case "hostname.from_dhcp":
-                    if "RebootNeeded" in set_hostname_from_dhcp(self.editing_camera):
-                        msg += "Please reboot the camera to enact the update\n"
-                case "hostname.name":
-                    set_hostname(self.editing_camera)
-                case "dns.from_dhcp" | "dns.dns_manual":
-                    set_dns(self.editing_camera)
-                case "ntp.from_dhcp" | "ntp.ntp_manual":
-                    self.debug_log.write(set_ntp(self.editing_camera))
-                case "network_interfaces.[*].ipv4.dhcp" | "network_interfaces.[*].ipv4.manual":
-                    index = self.editing_indicies[-1]
-                    interface = self.editing_camera.network_interfaces[index]
-                    manual = interface.ipv4.manual
-                    if "RebootNeeded" in set_network_interfaces(self.editing_camera, interface, manual):
-                        msg += "Please reboot the camera to enact the update\n"
-                case "profiles.[*].imaging_settings.brightness" | "profiles.[*].imaging_settings.color_saturation" | \
-                        "profiles.[*].imaging_settings.contrast" | "profiles.[*].imaging_settings.sharpness" | \
-                        "profiles.[*].imaging_settings.ir_cut_filter":
-                    index = self.editing_indicies[-1]
-                    profile = self.editing_camera.profiles[index]
-                    self.app.debug_log.write(set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings))
-                case "profiles.[*].audio_encoder.encoding" | "profiles.[*].audio_encoder.bitrate" | "profiles.[*].audio_encoder.sample_rate" | \
-                     "profiles.[*].audio_encoder.session_timeout" | "profiles.[*].audio_encoder.multicast.port" | \
-                     "profiles.[*].audio_encoder.multicast.ttl":
-                    index = self.editing_indicies[-1]
-                    profile = self.editing_camera.profiles[index]
-                    self.app.debug_log.write(set_audio_encoder_configuration(self.editing_camera, profile.audio_encoder))
+            if fqn == "network_gateway":
+                if "RebootNeeded" in set_network_default_gateway(self.editing_camera):
+                    msg += "Please reboot the camera to enact the update.\n"
+
+            elif fqn == "hostname.from_dhcp":
+                if "RebootNeeded" in set_hostname_from_dhcp(self.editing_camera):
+                    msg += "Please reboot the camera to enact the update\n"
+
+            elif fqn == "hostname.name":
+                set_hostname(self.editing_camera)
+
+            elif fqn.startswith("dns."):
+                set_dns(self.editing_camera)
+
+            elif fqn.startswith("ntp."):
+                self.debug_log.write(set_ntp(self.editing_camera))
+
+            elif fqn.startswith("network_interfaces.[*].ipv4"):
+                index = self.editing_indicies[-1]
+                interface = self.editing_camera.network_interfaces[index]
+                manual = interface.ipv4.manual
+                if "RebootNeeded" in set_network_interfaces(self.editing_camera, interface, manual):
+                    msg += "Please reboot the camera to enact the update\n"
+
+            elif fqn.startswith("profiles.[*].imaging_settings"):
+                index = self.editing_indicies[-1]
+                profile = self.editing_camera.profiles[index]
+                set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings)
+
+            elif fqn.startswith("profiles.[*].audio_encoder"):
+                index = self.editing_indicies[-1]
+                profile = self.editing_camera.profiles[index]
+                set_audio_encoder_configuration(self.editing_camera, profile.audio_encoder)
+
+            elif fqn.startswith("profiles.[*].video_encoder"):
+                index = self.editing_indicies[-1]
+                profile = self.editing_camera.profiles[index]
+                set_video_encoder_configuration(self.editing_camera, profile.video_encoder)
 
             self.debug_log.write(msg)
         except Exception as ex:
