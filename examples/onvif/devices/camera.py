@@ -25,13 +25,14 @@ from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEnc
         parse_audio_encoder_configuration_options_response, parse_audio_output_configurations_response, \
         parse_audio_decoder_configurations_response, parse_audio_output_configurations_response, \
         parse_audio_decoder_configuration_options_response
-
 from datastructures.network import NetworkInterface, DNSInformation, HostnameInformation, \
         parse_network_interfaces_response, parse_dns_response, parse_hostname_response
 from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
 from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
+from datastructures.event import ServiceCapabilities, EventProperties, \
+        parse_service_capabilities_response, parse_event_properties_response
 
 class AuthorizationError(Exception):
     pass
@@ -59,6 +60,8 @@ class Camera:
     dns: Optional[DNSInformation] = None
     ntp: Optional[NTPInformation] = None
     hostname: Optional[HostnameInformation] = None
+    service_capabilities: Optional[ServiceCapabilities] = None
+    event_properties: Optional[EventProperties] = None
     audio_output: list[AudioOutputConfiguration] = None
     audio_decoder: Optional[AudioDecoderConfiguration] = None
     audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
@@ -284,6 +287,18 @@ def get_audio_decoder_configurations(camera: Camera) -> None:
         setattr(camera, "audio_decoder_options", parse_audio_decoder_configuration_options_response(xml))
     except Exception as ex:
         ...
+
+@safe_run
+def get_service_capabilities(camera: Camera) -> None:
+    body = f"""<tev:GetServiceCapabilities/>"""
+    xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "service_capabilities", parse_service_capabilities_response(xml))
+
+@safe_run
+def get_event_properties(camera: Camera) -> None:
+    body = f"""<tev:GetEventProperties/>"""
+    xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera, "event_properties", parse_event_properties_response(xml))
 
 @safe_run
 def get_imaging_settings(camera: Camera, profile: Profile) -> None:
@@ -531,6 +546,9 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
             raise AuthorizationError("Not Authorized")
         raise ex
     
+    get_service_capabilities(camera)
+    get_event_properties(camera)
+
     get_network_interfaces(camera)
     get_network_default_gateway(camera)
     get_hostname(camera)

@@ -35,11 +35,7 @@ def stopHttpServer():
 
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
-    print("*", camera.name, camera.dns)
-    print(f"AUDIO OUTPUT: {camera.audio_output}")
-    print(f"AUDIO DECODER: {camera.audio_decoder}")
-    print(f"AUDIO DECODER OPTIONS: {camera.audio_decoder_options}")
-    print("\n\n\n\n")
+    print()
 
 if __name__ == "__main__":
 

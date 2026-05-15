@@ -39,6 +39,19 @@ EDITABLE_FIELDS = [
     "profiles.[*].video_encoder.rate_control.bitrate_limit",
 ]
 
+UNUSED_FIELDS = [
+    "audio_decoder", 
+    "audio_decoder_options", 
+    "audio_output",
+    "service_capabilities.persistent_notification_storage",
+    "service_capabilities.event_broker_protocols",
+    "service_capabilities.max_event_brokers",
+    "service_capabilities.metadata_over_mqtt",
+    "event_properties.fixed_topic_set",
+    "event_properties.producer_properties_filter_dialect",
+    "event_properties.topic_expression_dialect",
+]
+
 def normalize_fqn(fqn: str) -> str:
     return re.sub(r"\[\d+\]", "[*]", fqn)
 

@@ -9,8 +9,8 @@ from textual.containers import Vertical
 from dataclasses import asdict, is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
-from fields import field_descriptions, resolve_fqn_owner, convert_string_value, join_fqn, \
-        analyze_field_type, is_editable_field, normalize_fqn
+from fields import UNUSED_FIELDS, field_descriptions, resolve_fqn_owner, \
+        convert_string_value, join_fqn, analyze_field_type, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration
@@ -130,7 +130,7 @@ class CameraTree(Tree):
 
         if value is None:
             # The audio output fields are suppressed in the tui if not present
-            if name in ["audio_decoder", "audio_decoder_options", "audio_output"]:
+            if fqn in UNUSED_FIELDS:
                 return
             node = parent.add_leaf(Text(f"{name}: None", style="dim"))
             node.data = {"camera": camera, "field": name, "fqn": fqn}
@@ -145,6 +145,8 @@ class CameraTree(Tree):
 
         elif isinstance(value, list):
             if not value:
+                if fqn in UNUSED_FIELDS:
+                    return
                 # dim / grey text for empty lists
                 label = Text(f"{name}: list[0]", style="dim")
                 node = parent.add_leaf(label)

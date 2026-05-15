@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, List
 import xml.etree.ElementTree as ET
 from lxml import etree
 
@@ -18,7 +18,8 @@ NS = {
     "wsse": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
     "wsu": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd",
     "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
-    "evt": "http://www.onvif.org/ver10/events/wsdl",
+    "tev": "http://www.onvif.org/ver10/events/wsdl",
+    "wstop": "http://docs.oasis-open.org/wsn/t-1",
 }
 
 def text(elem: ET.Element, path: str) -> Optional[str]:
@@ -29,7 +30,14 @@ def bool_text(elem: ET.Element, path: str) -> Optional[bool]:
     value = text(elem, path)
     if value is None:
         return None
-    return value.lower() == "true"
+    return value.strip().lower() in ("true", "1", "yes", "on")
+
+def text_list(elem: ET.Element, path: str) -> list[str]:
+    return [
+        e.text.strip()
+        for e in elem.findall(path, NS)
+        if e.text and e.text.strip()
+    ]
 
 def int_text(elem: ET.Element, path: str) -> Optional[int]:
     value = text(elem, path)
@@ -47,6 +55,12 @@ def bool_attr(elem: ET.Element, name: str) -> Optional[bool]:
     if value is None:
         return None
     return value.lower() == "true"
+
+def int_attr(elem: ET.Element, name: str) -> Optional[bool]:
+    value = attr(elem, name)
+    if value is None:
+        return None
+    return int(value)
 
 def get_xml_value(xml_data, xpath):
     try:
