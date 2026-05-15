@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional
 import xml.etree.ElementTree as ET
-from lxml import etree
-from utils.xml import text, int_attr, bool_attr, attr, text_list, bool_text, NS
+from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, NS
 
 WSTOP_NS = "http://docs.oasis-open.org/wsn/t-1"
 WSTOP_TOPIC_ATTR = f"{{{WSTOP_NS}}}topic"
@@ -81,53 +80,38 @@ def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
 def strip_ns(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
 
-
 def is_topic_node(elem: ET.Element) -> bool:
     return elem.attrib.get(WSTOP_TOPIC_ATTR) == "true"
-
 
 def has_topic_child(elem: ET.Element) -> bool:
     for child in list(elem):
         if strip_ns(child.tag) == "MessageDescription":
             continue
-
         if is_topic_node(child):
             return True
-
         if has_topic_child(child):
             return True
-
     return False
-
 
 def collect_topic_paths(elem: ET.Element, prefix: str = "") -> list[str]:
     topics: list[str] = []
-
     for child in list(elem):
         name = strip_ns(child.tag)
-
         if name == "MessageDescription":
             continue
-
         path = f"{prefix}/{name}" if prefix else name
-
         if is_topic_node(child) and not has_topic_child(child):
             topics.append(path)
-
         topics.extend(collect_topic_paths(child, path))
-
     return topics
-
 
 def parse_topic_set(elem: Optional[ET.Element]) -> list[str]:
     if elem is None:
         return []
-
     return collect_topic_paths(elem)
 
 def parse_event_properties_response(xml: str) -> EventProperties:
     root = ET.fromstring(xml)
-
     elem = root.find(
         ".//tev:GetEventPropertiesResponse",
         NS,

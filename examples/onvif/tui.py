@@ -129,7 +129,6 @@ class CameraTree(Tree):
             return
 
         if value is None:
-            # The audio output fields are suppressed in the tui if not present
             if fqn in UNUSED_FIELDS:
                 return
             node = parent.add_leaf(Text(f"{name}: None", style="dim"))
@@ -147,7 +146,6 @@ class CameraTree(Tree):
             if not value:
                 if fqn in UNUSED_FIELDS:
                     return
-                # dim / grey text for empty lists
                 label = Text(f"{name}: list[0]", style="dim")
                 node = parent.add_leaf(label)
                 node.data = {"camera": camera, "field": name, "fqn": fqn}
@@ -222,7 +220,7 @@ class ObjectBrowser(App):
         try:
             self.debug_log.write(f"editing field type: {self.editing_field_type}")
 
-            base_type, is_optional, is_list = analyze_field_type(self.editing_field_type)
+            #base_type, is_optional, is_list = analyze_field_type(self.editing_field_type)
             old_value = getattr(self.editing_owner, self.editing_field)
             setattr(self.editing_owner, self.editing_field, convert_string_value(event.value.strip(), self.editing_field_type))
 
