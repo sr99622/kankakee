@@ -157,6 +157,39 @@ def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
 </tds:SetSystemDateAndTime>""".strip()
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+# when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
+# then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
+# manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
+def set_ntp(camera: Camera) -> str:
+    manual_settings = ""
+    if not camera.ntp.from_dhcp:
+        arg = ""
+        manual_settings = ""
+        for address_text in camera.ntp.ntp_manual:
+
+            ip_type = "DNS"
+            try:
+                ip = ipaddress.ip_address(address_text)
+                if ip.version == 4:
+                    ip_type = "IPv4"
+                if ip.version == 6:
+                    ip_type = "IPv6"
+            except Exception as ex:
+                pass
+
+            match ip_type:
+                case 'IPv4':
+                    arg = f"<tt:IPv4Address>{ip}</tt:IPv4Address>"
+                case 'IPv6':
+                    arg = f"<tt:IPv6Address>{ip}</tt:IPv6Address>"
+                case 'DNS':
+                    arg = f"<tt:DNSname>{address_text}</tt:DNSname>"
+
+            manual_settings += f"""<tds:NTPManual><tt:Type>{ip_type}</tt:Type>{arg}</tds:NTPManual>""".strip()
+
+    body = f"""<tds:SetNTP><tds:FromDHCP>{str(camera.ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
+    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+
 ############################################################################################################
 
 
@@ -234,24 +267,20 @@ def get_ntp(camera: Camera) -> None:
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "ntp", parse_ntp_response(xml))
 
-# this function does not follow design pattern, the audio output feature is not widely implemented, and could be removed without
-# a large loss of functionality. Field presentation is supressed in the tui, so it is only visible when found. Most users will 
-# not be looking for this data and won't miss it. Be aware that the fields are presented at the camera level, but the fields
-# are implemented in profiles.py
+# this function does not follow design pattern. the audio output feature is not widely implemented, and could be removed without
+# a large loss of functionality. Field presentation is supressed in the tui for the None case. Most users will not be looking for 
+# this data and won't miss it. Be aware that the fields are presented at the camera level, but are implemented in profiles.py
 def get_audio_decoder_configurations(camera: Camera) -> None:
     try:
         body = f"""<trt:GetAudioDecoderConfigurations/>"""
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-        print(xml)
         setattr(camera, "audio_decoder", parse_audio_decoder_configurations_response(xml))
         body = f"""<trt:GetAudioOutputConfigurations/>"""
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
         setattr(camera, "audio_output", parse_audio_output_configurations_response(xml))
-        print(xml)
         body = f"""<trt:GetAudioDecoderConfigurationOptions/>"""
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
         setattr(camera, "audio_decoder_options", parse_audio_decoder_configuration_options_response(xml))
-        print(xml)
     except Exception as ex:
         ...
 
@@ -363,7 +392,6 @@ def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfigu
     <trt:ForcePersistence>true</trt:ForcePersistence>
 </trt:SetAudioEncoderConfiguration>""".strip()
 
-    #return body
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
     
@@ -467,39 +495,6 @@ def set_dns(camera: Camera) -> str:
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-# when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
-# then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
-# manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
-def set_ntp(camera: Camera) -> str:
-    manual_settings = ""
-    if not camera.ntp.from_dhcp:
-        arg = ""
-        manual_settings = ""
-        for address_text in camera.ntp.ntp_manual:
-
-            ip_type = "DNS"
-            try:
-                ip = ipaddress.ip_address(address_text)
-                if ip.version == 4:
-                    ip_type = "IPv4"
-                if ip.version == 6:
-                    ip_type = "IPv6"
-            except Exception as ex:
-                pass
-
-            match ip_type:
-                case 'IPv4':
-                    arg = f"<tt:IPv4Address>{ip}</tt:IPv4Address>"
-                case 'IPv6':
-                    arg = f"<tt:IPv6Address>{ip}</tt:IPv6Address>"
-                case 'DNS':
-                    arg = f"<tt:DNSname>{address_text}</tt:DNSname>"
-
-            manual_settings += f"""<tds:NTPManual><tt:Type>{ip_type}</tt:Type>{arg}</tds:NTPManual>""".strip()
-
-    body = f"""<tds:SetNTP><tds:FromDHCP>{str(camera.ntp.from_dhcp).lower()}</tds:FromDHCP>{manual_settings}</tds:SetNTP>""".strip()
-    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
 
@@ -541,7 +536,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     get_dns(camera)
     get_ntp(camera)
     get_profiles(camera)
-    get_audio_decoder_configurations(camera)
+    get_audio_decoder_configurations(camera) # odd
     for profile in camera.profiles:
         get_stream_uri(camera, profile)
         get_snapshot_uri(camera, profile)
