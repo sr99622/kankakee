@@ -5,15 +5,6 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 
-'''
-@dataclass
-class NetworkHost:
-    type: Optional[str] = None
-    ipv4: Optional[str] = None
-    ipv6: Optional[str] = None
-    dns: Optional[str] = None
-'''
-
 @dataclass
 class NTPInformation:
     from_dhcp: Optional[bool] = None
@@ -107,16 +98,6 @@ def parse_system_date_and_time_response(xml: str) -> SystemDateAndTime:
         local_date_time=parse_datetime(elem.find("tt:LocalDateTime", NS)),
     )
 
-'''
-def parse_network_host(elem: ET.Element) -> NetworkHost:
-    return NetworkHost(
-        type=text(elem, "tt:Type"),
-        ipv4=text(elem, "tt:IPv4Address"),
-        ipv6=text(elem, "tt:IPv6Address"),
-        dns=text(elem, "tt:DNSname"),
-    )
-'''
-    
 def parse_ip_address(elem):
     return (
         text(elem, "tt:IPv4Address")
@@ -125,7 +106,6 @@ def parse_ip_address(elem):
     )
 
 def parse_ntp_response(xml: str) -> NTPInformation:
-    #print(xml)
     root = ET.fromstring(xml)
 
     ntp_elem = root.find(".//tds:NTPInformation", NS)

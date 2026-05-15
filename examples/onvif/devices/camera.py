@@ -13,9 +13,10 @@ from utils.xml import text, NS
 from urllib.parse import unquote_plus, urlparse
 import uuid
 import ipaddress
-from kankakee import Broadcaster
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable
+import socket
+import struct
 
 from datastructures.capabilities import Capabilities, parse_capabilities_response
 from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEncoderConfiguration, \
@@ -554,12 +555,27 @@ def discover(ip_address: str, camera_filled: Callable[[Camera], None] | None = N
     camera_jobs = []
     msg_id = uuid.uuid4()
     soap = f"""<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"><SOAP-ENV:Header><a:Action SOAP-ENV:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action><a:MessageID>urn:uuid:{msg_id}</a:MessageID><a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo><a:To SOAP-ENV:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></SOAP-ENV:Header><SOAP-ENV:Body><p:Probe xmlns:p="http://schemas.xmlsoap.org/ws/2005/04/discovery"><d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">dp0:NetworkVideoTransmitter</d:Types></p:Probe></SOAP-ENV:Body></SOAP-ENV:Envelope>"""
-    broadcaster = Broadcaster(ip_address, "239.255.255.250", 3702)
-    broadcaster.errorCallback = logger.error
-    broadcaster.send(soap)
-    results = broadcaster.recv()
+    timeout = 0.5
+    responses = []
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((ip_address, 0))
+    sock.settimeout(timeout)
+    ttl = struct.pack("b", 1)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+    multicast_address = ("239.255.255.250", 3702)
+    sock.sendto(soap.encode("utf-8"), multicast_address)
+    receiver_buffer_size = 8192
+    while True:
+        try:
+            data, addr = sock.recvfrom(receiver_buffer_size)
+            response = data.decode("utf-8", errors="ignore")
+            responses.append(response)
+        except socket.timeout:
+            break
+    sock.close()
 
-    for result in results:
+    for result in responses:
         if not str(msg_id) in get_xml_value(result, "//s:Header//a:RelatesTo"):
             continue
 

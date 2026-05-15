@@ -17,14 +17,6 @@ class DNSInformation:
     dns_from_dhcp: list[str] = field(default_factory=list)
     dns_manual: list[str] = field(default_factory=list)
 
-'''
-@dataclass
-class PrefixedIPv4Address:
-    address: Optional[str] = None
-    prefix_length: Optional[int] = None
-'''
-
-
 @dataclass
 class PrefixedIPv6Address:
     address: Optional[str] = None
@@ -83,10 +75,6 @@ def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[str]:
     if elem is None:
         return None
 
-    #return PrefixedIPv4Address(
-    #    address=text(elem, "tt:Address"),
-    #    prefix_length=int_text(elem, "tt:PrefixLength"),
-    #)
     address=text(elem, "tt:Address")
     prefix_length=int_text(elem, "tt:PrefixLength")
     return f"{address} / {prefix_length}"

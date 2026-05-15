@@ -324,7 +324,10 @@ class ObjectBrowser(App):
         def camera_filled(camera: Camera) -> None:
             self.call_from_thread(self.camera_tree.add_camera, camera)
 
-        discover("10.1.1.76", camera_filled=camera_filled)
+        try:
+            discover("10.1.1.76", camera_filled=camera_filled)
+        except Exception as ex:
+            self.debug_log.write(f"Discovery error: {ex}")
 
 if __name__ == "__main__":
     app = ObjectBrowser()

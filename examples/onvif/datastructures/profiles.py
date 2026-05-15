@@ -38,7 +38,6 @@ class VideoEncoderConfiguration:
     name: Optional[str] = None
     use_count: Optional[int] = None
     encoding: Optional[str] = None
-    #resolution: Resolution = field(default_factory=Resolution)
     resolution: Optional[str] = None
     quality: Optional[float] = None
     rate_control: RateControl = field(default_factory=RateControl)
@@ -234,12 +233,7 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
                 token=attr(video_encoder, "token"),
                 name=text(video_encoder, "tt:Name"),
                 use_count=int_text(video_encoder, "tt:UseCount"),
-                #encoding=text(video_encoder, "tt:Encoding"),
                 encoding=encoding,
-                #resolution=Resolution(
-                #    width=int_text(video_encoder, "tt:Resolution/tt:Width"),
-                #    height=int_text(video_encoder, "tt:Resolution/tt:Height"),
-                #),
                 resolution=f"{int_text(video_encoder, "tt:Resolution/tt:Width")} x {int_text(video_encoder, "tt:Resolution/tt:Height")}",
                 quality=float_text(video_encoder, "tt:Quality"),
                 rate_control=RateControl(
@@ -255,8 +249,6 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
                 ),
                 multicast=parse_multicast(video_encoder.find("tt:Multicast", NS)),
                 session_timeout=text(video_encoder, "tt:SessionTimeout"),
-                #gov_length=int_text(video_encoder, "tt:H264/tt:GovLength"),
-                #profile=text(video_encoder, "tt:H264/tt:H264Profile"),
                 gov_length=gov_length,
                 profile=encoder_profile,
             )
