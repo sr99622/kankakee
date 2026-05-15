@@ -19,6 +19,7 @@ NS = {
     "wsse": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
     "wsu": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd",
     "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
+    "evt": "http://www.onvif.org/ver10/events/wsdl",
 }
 
 def text(elem: ET.Element, path: str) -> Optional[str]:

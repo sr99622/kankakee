@@ -129,6 +129,9 @@ class CameraTree(Tree):
             return
 
         if value is None:
+            # The audio output fields are suppressed in the tui if not present
+            if name in ["audio_decoder", "audio_decoder_options", "audio_output"]:
+                return
             node = parent.add_leaf(Text(f"{name}: None", style="dim"))
             node.data = {"camera": camera, "field": name, "fqn": fqn}
             return

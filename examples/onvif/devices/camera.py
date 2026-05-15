@@ -68,8 +68,8 @@ def safe_run(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Error in {func.__name__}: {e}")
-            logger.debug(traceback.format_exc())
+            #logger.error(f"Error in {func.__name__}: {e}")
+            #logger.debug(traceback.format_exc())
             return None
     return wrapper
 
@@ -234,6 +234,10 @@ def get_ntp(camera: Camera) -> None:
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "ntp", parse_ntp_response(xml))
 
+# this function does not follow design pattern, the audio output feature is not widely implemented, and could be removed without
+# a large loss of functionality. Field presentation is supressed in the tui, so it is only visible when found. Most users will 
+# not be looking for this data and won't miss it. Be aware that the fields are presented at the camera level, but the fields
+# are implemented in profiles.py
 def get_audio_decoder_configurations(camera: Camera) -> None:
     try:
         body = f"""<trt:GetAudioDecoderConfigurations/>"""
