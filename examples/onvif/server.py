@@ -1,60 +1,93 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Optional
+import xml.etree.ElementTree as ET
+from utils.xml import int_attr, bool_attr, attr, text, bool_text, NS
+
 import http.server
 import socketserver
 import os
 import signal
 import sys
 from pathlib import Path
-from PyQt6.QtCore import QStandardPaths
+from functools import partial
 
 PORT = 8800
 
+def my_func():
+    return "MY FUNC"
+
 def getLocation():
     path = Path(os.path.dirname(__file__))
-    return str(path.parent.absolute())
-
-def getCacheLocation():
-    match sys.platform:
-        case "linux":
-            if len(QStandardPaths.standardLocations(QStandardPaths.StandardLocation.AppDataLocation)):
-                return os.path.join(QStandardPaths.standardLocations(QStandardPaths.StandardLocation.AppDataLocation)[0], "cayenue", "proxy")
-            else:
-                return os.path.join(os.environ['HOME'], ".cache", "cayenue", "proxy")
-        case "win32":
-            return os.path.join(os.environ['HOMEPATH'], ".cache", "cayenue", "proxy")
-        case "darwin":
-            return os.path.join(getLocation(), "cache", "proxy")
-
-    # fallback if all else fails
-    return ".cache"
+    return str(path.absolute())
 
 def handle_sigterm(signum, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, handle_sigterm)
 
+def strip_topic_prefix(topic: str) -> str:
+    if ":" in topic:
+        return topic.split(":", 1)[1]
+    return topic
+
+def simple_items(elem: ET.Element | None) -> dict[str, str]:
+    if elem is None:
+        return {}
+
+    return {
+        item.attrib.get("Name", ""): item.attrib.get("Value", "")
+        for item in elem.findall("tt:SimpleItem", NS)
+        if item.attrib.get("Name")
+    }
+
+def parse_notify(xml: str) -> None:
+    root = ET.fromstring(xml)
+    for msg in root.findall(".//wsnt:NotificationMessage", NS):
+        topic = text(msg, "wsnt:Topic")
+        topic = strip_topic_prefix(topic) if topic else None
+
+        message = msg.find("wsnt:Message/tt:Message", NS)
+
+        print("topic:", topic)
+
+        if message is not None:
+            print("utc_time:", message.attrib.get("UtcTime"))
+            print("operation:", message.attrib.get("PropertyOperation"))
+            print("source:", simple_items(message.find("tt:Source", NS)))
+            print("data:", simple_items(message.find("tt:Data", NS)))
+
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     disable_nagle_algorithm = True
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=getCacheLocation(), **kwargs)
+    def __init__(self, *args, my_arg=None, **kwargs):
+        self.my_arg = my_arg
+        super().__init__(*args, **kwargs, directory=getLocation())
 
-    def do_GET(self):
-        print("THIS IS THE TOP OF THE CALL")
+    def do_POST(self):
         print(self.path)
-        if self.path == "/shutdown":
+        if self.path == "/onvif/events":
+            print(f"my arg: {self.my_arg()}")
+            print(self.path)
+            content_length = int(
+                self.headers.get("Content-Length", 0)
+            )
+            body = self.rfile.read(content_length)
+            xml = body.decode("utf-8")
+            #print(xml)
+            parse_notify(xml)
             self.send_response(200)
             self.end_headers()
-            #self.server.shutdown()
-            print("GOT SHUTDOWN SIGNAL")
         else:
-            #super().do_POST()
-            print("THIS IS A TEST")
+            super().do_POST()
 
 if __name__ == "__main__":
     try:
-        with Server(("", PORT), Handler) as httpd:
+        handler = partial(Handler, my_arg=my_func)
+        with Server(("", PORT), handler) as httpd:
             httpd.serve_forever()
     except Exception as ex:
         print(f"HTTP SERVER ERROR: {ex}")

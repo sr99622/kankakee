@@ -511,6 +511,27 @@ def set_dns(camera: Camera) -> str:
     
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
+def subscribe_events(camera: Camera) -> str:
+    callback_url = "http://10.1.1.76:8800/onvif/events"
+    initial_termination_time = "PT1M"
+    body = f"""
+        <wsnt:Subscribe>
+            <wsnt:ConsumerReference>
+                <wsa:Address>{callback_url}</wsa:Address>
+            </wsnt:ConsumerReference>
+            <wsnt:Filter>
+                <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:VideoSource/MotionAlarm</wsnt:TopicExpression>
+            </wsnt:Filter>
+            <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
+        </wsnt:Subscribe>""".strip()
+    
+    xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+    subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
+    termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
+    setattr(camera.event_properties, "subscription_reference", subscription_reference)
+    setattr(camera.event_properties, "termination_time", termination_time)
+
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
 
@@ -548,6 +569,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     
     get_service_capabilities(camera)
     get_event_properties(camera)
+    subscribe_events(camera)
 
     get_network_interfaces(camera)
     get_network_default_gateway(camera)

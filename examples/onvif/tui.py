@@ -36,8 +36,20 @@ class CameraTree(Tree):
 
     BINDINGS = [
         ("]", "toggle_recursive", "Open/close all"),
-        ("r", "reboot", "Reboot Selected")
+        ("r", "reboot", "Reboot Selected"),
+        ("v", "event", "Event"),
     ]
+
+    def action_event(self) -> None:
+        self.app.debug_log.write("EVENT TEST")
+        if node := self.cursor_node:
+            self.app.debug_log.write(node.parent.label)
+            if node.parent.label.plain.startswith("topic_set:"):
+                if node.label.plain.startswith(" * "):
+                    label = node.label.plain[3:]
+                else:
+                    label = f" * {node.label}"
+                node.set_label(label)
 
     def get_fqn(self, node: TreeNode) -> str:
         parts = []
@@ -169,7 +181,7 @@ class ObjectBrowser(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         Binding("e", "edit_selected", "Edit"),
-        Binding("escape", "cancel_edit", "Cancel edit"),
+        Binding("escape", "cancel_edit", "Cancel"),
     ]
 
     CSS = """

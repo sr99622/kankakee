@@ -20,6 +20,8 @@ NS = {
     "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
     "tev": "http://www.onvif.org/ver10/events/wsdl",
     "wstop": "http://docs.oasis-open.org/wsn/t-1",
+    "wsa": "http://www.w3.org/2005/08/addressing",
+    "tns1": "http://www.onvif.org/ver10/topics",
 }
 
 def text(elem: ET.Element, path: str) -> Optional[str]:
