@@ -1,9 +1,5 @@
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from typing import Optional
 import xml.etree.ElementTree as ET
-from utils.xml import int_attr, bool_attr, attr, text, bool_text, NS
+from utils.xml import text, NS
 
 import http.server
 import socketserver
@@ -15,8 +11,9 @@ from functools import partial
 
 PORT = 8800
 
-def my_func():
-    return "MY FUNC"
+def my_func(arg: list[dict[str, str]]):
+    for item in arg:
+        print(item)
 
 def getLocation():
     path = Path(os.path.dirname(__file__))
@@ -42,21 +39,21 @@ def simple_items(elem: ET.Element | None) -> dict[str, str]:
         if item.attrib.get("Name")
     }
 
-def parse_notify(xml: str) -> None:
+def parse_notify(ip_address: str, xml: str) -> list[dict[str, str]]:
     root = ET.fromstring(xml)
+    output = []
     for msg in root.findall(".//wsnt:NotificationMessage", NS):
         topic = text(msg, "wsnt:Topic")
         topic = strip_topic_prefix(topic) if topic else None
-
+        alarm = {"ip_address": ip_address, "topic": topic}
         message = msg.find("wsnt:Message/tt:Message", NS)
-
-        print("topic:", topic)
-
         if message is not None:
-            print("utc_time:", message.attrib.get("UtcTime"))
-            print("operation:", message.attrib.get("PropertyOperation"))
-            print("source:", simple_items(message.find("tt:Source", NS)))
-            print("data:", simple_items(message.find("tt:Data", NS)))
+            alarm["utc_time"] = message.attrib.get("UtcTime")
+            alarm["operation"] = message.attrib.get("PropertyOperation")
+            alarm["source"] = simple_items(message.find("tt:Source", NS))
+            alarm["data"] = simple_items(message.find("tt:Data", NS)) 
+            output.append(alarm)
+    return output
 
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
@@ -65,24 +62,17 @@ class Server(socketserver.ThreadingTCPServer):
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, my_arg=None, **kwargs):
         self.my_arg = my_arg
-        super().__init__(*args, **kwargs, directory=getLocation())
+        super().__init__(*args, **kwargs)
 
     def do_POST(self):
-        print(self.path)
         if self.path == "/onvif/events":
-            print(f"my arg: {self.my_arg()}")
-            print(self.path)
-            content_length = int(
-                self.headers.get("Content-Length", 0)
-            )
+            content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
             xml = body.decode("utf-8")
-            #print(xml)
-            parse_notify(xml)
+            alarms = parse_notify(self.client_address[0], xml)
+            self.my_arg(alarms) if self.my_arg else ...
             self.send_response(200)
             self.end_headers()
-        else:
-            super().do_POST()
 
 if __name__ == "__main__":
     try:
