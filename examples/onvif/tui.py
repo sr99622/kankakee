@@ -14,7 +14,8 @@ from fields import UNUSED_FIELDS, field_descriptions, resolve_fqn_owner, \
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration
-from server import Server, Handler
+from server import Server, Handler, PORT
+from functools import partial
 
 class ConfirmRebootScreen(ModalScreen[bool]):
     def __init__(self, camera_name: str) -> None:
@@ -331,7 +332,34 @@ class ObjectBrowser(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.httpd = None
         self.run_worker(self.discover_worker, thread=True)
+        self.run_worker(self.http_server_worker, thread=True)
+
+    def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
+        for alarm in alarms:
+            self.debug_log.write(str(alarm))
+
+    def on_camera_events_from_thread(self, alarms: list[dict[str, str]]) -> None:
+        self.call_from_thread(self.handle_camera_events, alarms)
+
+    def http_server_worker(self) -> None:
+        try:
+            handler = partial(Handler, my_arg=self.on_camera_events_from_thread)
+
+            with Server(("", PORT), handler) as httpd:
+                self.httpd = httpd
+                httpd.serve_forever()
+
+        except Exception as ex:
+            self.call_from_thread(
+                self.debug_log.write,
+                f"HTTP SERVER ERROR: {ex}",
+            )
+
+    def on_unmount(self) -> None:
+        if self.httpd is not None:
+            self.httpd.shutdown()
 
     def discover_worker(self) -> None:
         def camera_filled(camera: Camera) -> None:
