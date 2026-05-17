@@ -49,6 +49,7 @@ class DeviceInformation:
 class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
+    system_date_and_time: Optional[SystemDateAndTime] = None
     device_information: Optional[str] = None
     time_offset: Optional[int] = 0
     username: Optional[str] = None
@@ -109,6 +110,7 @@ def get_system_date_and_time(url: str) -> SystemDateAndTime:
 
 def get_time_offset(camera: Camera) -> None:
     sdt = get_system_date_and_time(camera.xaddr)
+    setattr(camera, "system_date_and_time", sdt)
     camera_utc = datetime(sdt.utc_date_time.date.year, sdt.utc_date_time.date.month, sdt.utc_date_time.date.day, 
         sdt.utc_date_time.time.hour, sdt.utc_date_time.time.minute, sdt.utc_date_time.time.second).replace(tzinfo=timezone.utc)
     computer_utc = datetime.now(timezone.utc)
@@ -459,6 +461,12 @@ def reboot(camera: Camera) -> str:
 """
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+def unsubscribe(camera: Camera, subscription_reference: str):
+    body = f"""
+<wsnt:Unsubscribe/>
+"""
+    return onvif_post(subscription_reference, body, camera.username, camera.password, camera.time_offset)
+
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
 <tds:SetNetworkDefaultGateway>
@@ -512,25 +520,34 @@ def set_dns(camera: Camera) -> str:
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def subscribe_events(camera: Camera) -> str:
+def subscribe_events(camera: Camera, event: str) -> str:
     callback_url = "http://10.1.1.76:8800/onvif/events"
     initial_termination_time = "PT1M"
+
+    filter = f"""    
+                <wsnt:Filter>
+                    <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
+                </wsnt:Filter>"""
+    
     body = f"""
         <wsnt:Subscribe>
             <wsnt:ConsumerReference>
                 <wsa:Address>{callback_url}</wsa:Address>
-            </wsnt:ConsumerReference>
-            <wsnt:Filter>
-                <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:VideoSource/MotionAlarm</wsnt:TopicExpression>
-            </wsnt:Filter>
+            </wsnt:ConsumerReference>{filter}
             <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
         </wsnt:Subscribe>""".strip()
     
+    #return body
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
     termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
     setattr(camera.event_properties, "subscription_reference", subscription_reference)
     setattr(camera.event_properties, "termination_time", termination_time)
+
+#            <wsnt:Filter>
+#                <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:VideoSource/MotionAlarm</wsnt:TopicExpression>
+#            </wsnt:Filter>
+
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)

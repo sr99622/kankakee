@@ -13,9 +13,11 @@ from fields import UNUSED_FIELDS, field_descriptions, resolve_fqn_owner, \
         convert_string_value, join_fqn, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
-        set_audio_encoder_configuration, set_video_encoder_configuration
+        set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
+        unsubscribe
 from server import Server, Handler, PORT
 from functools import partial
+from datetime import datetime, timezone, timedelta
 
 class ConfirmRebootScreen(ModalScreen[bool]):
     def __init__(self, camera_name: str) -> None:
@@ -48,8 +50,11 @@ class CameraTree(Tree):
             self.app.debug_log.write(node.parent.label)
             if node.parent.label.plain.startswith("topic_set:"):
                 if node.label.plain.startswith(" * "):
+                    self.app.debug_log.write(node.data["camera"].event_properties.subscription_reference)
+                    self.app.debug_log.write(unsubscribe(node.data["camera"], node.data["camera"].event_properties.subscription_reference))
                     label = node.label.plain[3:]
                 else:
+                    subscribe_events(node.data["camera"], node.label.plain.split(":")[1].strip())
                     label = f" * {node.label}"
                 node.set_label(label)
 
@@ -164,7 +169,7 @@ class CameraTree(Tree):
                 node = parent.add_leaf(label)
                 node.data = {"camera": camera, "field": name, "fqn": fqn}
                 return
-            node = parent.add(f"{name}: list[{len(value)}]", expand=False)
+            node = parent.add(f"{name}: [{len(value)}]", expand=False)
             node.data = {"camera": camera, "field": name, "fqn": fqn}
             for index, item in enumerate(value):
                 self._add_value(node, f"[{index}]", item, camera)

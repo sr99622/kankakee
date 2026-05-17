@@ -23,10 +23,16 @@ class ServiceCapabilities:
 class TopicNamespaceLocation:
     uri: Optional[str] = None
 
+#@dataclass
+#class TopicSet:
+#    raw_xml: Optional[str] = None
+#    topics: list[str] = field(default_factory=list)
+
 @dataclass
-class TopicSet:
-    raw_xml: Optional[str] = None
-    topics: list[str] = field(default_factory=list)
+class SubscriptionReference:
+    xaddr: Optional[str]
+    event: Optional[str]
+    termination_time: Optional[str]
 
 @dataclass
 class EventProperties:
@@ -39,6 +45,8 @@ class EventProperties:
     topic_expression_dialect: list[str] = field(default_factory=list)
     subscription_reference: Optional[str] = None
     termination_time: Optional[str] = None
+    subscription_references: list[SubscriptionReference] = None
+
 
 def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
     root = ET.fromstring(xml)
