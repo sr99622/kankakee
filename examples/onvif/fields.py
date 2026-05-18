@@ -52,6 +52,10 @@ UNUSED_FIELDS = [
     "event_properties.topic_expression_dialect",
 ]
 
+HIDDEN_FIELDS = [
+    "subscription_references",
+]
+
 def normalize_fqn(fqn: str) -> str:
     return re.sub(r"\[\d+\]", "[*]", fqn)
 

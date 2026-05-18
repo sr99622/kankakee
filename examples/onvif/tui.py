@@ -9,7 +9,7 @@ from textual.containers import Vertical
 from dataclasses import is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
-from fields import UNUSED_FIELDS, field_descriptions, resolve_fqn_owner, \
+from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn_owner, \
         convert_string_value, join_fqn, is_editable_field, normalize_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
@@ -17,7 +17,8 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         unsubscribe
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
-from functools import partial
+from functools import partial, wraps
+import traceback
 from datetime import datetime, timezone, timedelta
 
 class ConfirmRebootScreen(ModalScreen[bool]):
@@ -57,6 +58,7 @@ class CameraTree(Tree):
                 event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
                     reference = self.get_reference_for_event(camera, event)
+                    self.app.debug_log.write(reference.xaddr)
                     self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
                     camera.subscription_references.remove(reference)
                     label = node.label.plain[3:]
@@ -64,6 +66,7 @@ class CameraTree(Tree):
                     xml = subscribe_events(camera, event)
                     subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
                     termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
+                    self.app.debug_log.write(f"termination_time: {termination_time}")
                     reference = SubscriptionReference(xaddr=subscription_reference, event=event, termination_time=termination_time)
                     camera.subscription_references.append(reference)
                     label = f" * {node.label}"
@@ -152,6 +155,9 @@ class CameraTree(Tree):
     def _add_value(self, parent: TreeNode, name: str, value: object, camera: Camera) -> None:
 
         fqn = join_fqn(self.get_fqn(parent), name)
+
+        if fqn in HIDDEN_FIELDS:
+            return
 
         if is_editable_field(fqn) and value is not None:
             node = parent.add_leaf(self._make_editable_label(name, str(value)))

@@ -462,12 +462,6 @@ def reboot(camera: Camera) -> str:
 """
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-def unsubscribe(camera: Camera, subscription_reference: str):
-    body = f"""
-<wsnt:Unsubscribe/>
-"""
-    return onvif_post(subscription_reference, body, camera.username, camera.password, camera.time_offset)
-
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
 <tds:SetNetworkDefaultGateway>
@@ -538,14 +532,15 @@ def subscribe_events(camera: Camera, event: str) -> str:
             <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
         </wsnt:Subscribe>""".strip()
     
-    #return body
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml
 
-#            <wsnt:Filter>
-#                <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:VideoSource/MotionAlarm</wsnt:TopicExpression>
-#            </wsnt:Filter>
-
+@safe_run
+def unsubscribe(camera: Camera, subscription_reference: str):
+    body = f"""
+<wsnt:Unsubscribe/>
+"""
+    return onvif_post(subscription_reference, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)
