@@ -24,11 +24,6 @@ class ServiceCapabilities:
 class TopicNamespaceLocation:
     uri: Optional[str] = None
 
-#@dataclass
-#class TopicSet:
-#    raw_xml: Optional[str] = None
-#    topics: list[str] = field(default_factory=list)
-
 @dataclass
 class SubscriptionReference:
     xaddr: Optional[str] = None

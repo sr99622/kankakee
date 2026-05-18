@@ -55,7 +55,7 @@ class CameraTree(Tree):
                 return reference
             
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
-        return self.set_timer(
+         return self.set_timer(
             max(1.0, delay),
             lambda: self.run_worker(
                 lambda: self.resubscribe_event(camera, event),
