@@ -579,7 +579,7 @@ def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
     
     get_service_capabilities(camera)
     get_event_properties(camera)
-    subscribe_events(camera)
+    #subscribe_events(camera)
 
     get_network_interfaces(camera)
     get_network_default_gateway(camera)

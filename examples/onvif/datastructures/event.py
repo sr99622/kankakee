@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from textual.timer import Timer
 from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, NS
@@ -30,9 +31,10 @@ class TopicNamespaceLocation:
 
 @dataclass
 class SubscriptionReference:
-    xaddr: Optional[str]
-    event: Optional[str]
-    termination_time: Optional[str]
+    xaddr: Optional[str] = None
+    event: Optional[str] = None
+    termination_time: Optional[str] = None
+    resubscribe_timer: Optional[Timer] = None
 
 @dataclass
 class EventProperties:

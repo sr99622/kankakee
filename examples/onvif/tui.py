@@ -6,6 +6,7 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label
 from textual.containers import Vertical
+from textual.timer import Timer
 from dataclasses import is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
@@ -20,6 +21,8 @@ from server import Server, Handler, PORT
 from functools import partial, wraps
 import traceback
 from datetime import datetime, timezone, timedelta
+
+RESUBSCRIBE_MARGIN_SECONDS = 10
 
 class ConfirmRebootScreen(ModalScreen[bool]):
     def __init__(self, camera_name: str) -> None:
@@ -50,6 +53,48 @@ class CameraTree(Tree):
         for reference in camera.subscription_references:
             if reference.event == event:
                 return reference
+            
+    def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
+        return self.set_timer(
+            max(1.0, delay),
+            lambda: self.run_worker(
+                lambda: self.resubscribe_event(camera, event),
+                thread=True,
+            ),
+        )
+            
+    def resubscribe_event(self, camera: Camera, event: str) -> None:
+        try:
+            if reference := self.get_reference_for_event(camera, event):
+                camera.subscription_references.remove(reference)
+                self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
+
+            xml = subscribe_events(camera, event)
+            subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
+            termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
+            dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
+            delay = (dt - datetime.now(timezone.utc)).total_seconds() - camera.time_offset - RESUBSCRIBE_MARGIN_SECONDS
+
+            if reference is None:
+                resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
+            else:
+                resubscribe_timer = self.app.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
+
+            reference = SubscriptionReference(
+                xaddr=subscription_reference, 
+                event=event, 
+                termination_time=termination_time,
+                resubscribe_timer=resubscribe_timer
+            )
+
+            camera.subscription_references.append(reference)
+        except Exception as ex:
+            #self.app.call_from_thread(self.app.debug_log.write, f"resubscribe event errror: {ex}")
+            #self.app.call_from_thread(self.app.debug_log.write, traceback.format_exc())
+            f = open("errors.txt", "w")
+            f.write(f"resubscribe event errror: {ex}")
+            f.write(traceback.format_exc())
+            f.close()
 
     def action_event(self) -> None:
         if node := self.cursor_node:
@@ -57,18 +102,14 @@ class CameraTree(Tree):
                 camera = node.data["camera"]
                 event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
-                    reference = self.get_reference_for_event(camera, event)
-                    self.app.debug_log.write(reference.xaddr)
-                    self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
-                    camera.subscription_references.remove(reference)
+                    if reference := self.get_reference_for_event(camera, event):
+                        reference.resubscribe_timer.stop()
+                        self.app.debug_log.write(reference.xaddr)
+                        self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
+                        camera.subscription_references.remove(reference)
                     label = node.label.plain[3:]
                 else:
-                    xml = subscribe_events(camera, event)
-                    subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
-                    termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
-                    self.app.debug_log.write(f"termination_time: {termination_time}")
-                    reference = SubscriptionReference(xaddr=subscription_reference, event=event, termination_time=termination_time)
-                    camera.subscription_references.append(reference)
+                    self.resubscribe_event(camera, event)
                     label = f" * {node.label}"
                 node.set_label(label)
 
