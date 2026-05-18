@@ -3,7 +3,7 @@ import traceback
 import niquests as requests
 import time
 from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List
 from utils.xml import get_xml_value
 from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
@@ -31,7 +31,7 @@ from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
 from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
-from datastructures.event import ServiceCapabilities, EventProperties, \
+from datastructures.event import ServiceCapabilities, EventProperties, SubscriptionReference, \
         parse_service_capabilities_response, parse_event_properties_response
 
 class AuthorizationError(Exception):
@@ -66,6 +66,7 @@ class Camera:
     audio_output: list[AudioOutputConfiguration] = None
     audio_decoder: Optional[AudioDecoderConfiguration] = None
     audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
+    subscription_references: list[SubscriptionReference] = field(default_factory=list)
 
 def safe_run(func):
     @wraps(func)
@@ -539,10 +540,7 @@ def subscribe_events(camera: Camera, event: str) -> str:
     
     #return body
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
-    subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
-    termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
-    setattr(camera.event_properties, "subscription_reference", subscription_reference)
-    setattr(camera.event_properties, "termination_time", termination_time)
+    return xml
 
 #            <wsnt:Filter>
 #                <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:VideoSource/MotionAlarm</wsnt:TopicExpression>
