@@ -45,38 +45,27 @@ class CameraTree(Tree):
         ("v", "event", "Event"),
     ]
 
+    def get_reference_for_event(self, camera: Camera, event: str) -> SubscriptionReference:
+        for reference in camera.subscription_references:
+            if reference.event == event:
+                return reference
+
     def action_event(self) -> None:
-        self.app.debug_log.write("EVENT TEST")
         if node := self.cursor_node:
-            self.app.debug_log.write(node.parent.label)
             if node.parent.label.plain.startswith("topic_set:"):
                 camera = node.data["camera"]
+                event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
-                    self.app.debug_log.write(camera.subscription_references)
-                    xaddr = None
-                    thingy = None
-                    for reference in camera.subscription_references:
-                        event = node.label.plain[3:].split(":")[1].strip()
-                        self.app.debug_log.write(f"node label: {event}, reference: {reference.event}")
-                        if reference.event == event:
-                            self.app.debug_log.write("FOUND REFERENCE")
-                            xaddr = reference.xaddr
-                            thingy = reference
-                    self.app.debug_log.write(unsubscribe(camera, xaddr))
-                    camera.subscription_references.remove(thingy)
+                    reference = self.get_reference_for_event(camera, event)
+                    self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
+                    camera.subscription_references.remove(reference)
                     label = node.label.plain[3:]
                 else:
-                    event = node.label.plain.split(":")[1].strip()
                     xml = subscribe_events(camera, event)
                     subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
                     termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
-                    setattr(camera.event_properties, "subscription_reference", subscription_reference)
-                    setattr(camera.event_properties, "termination_time", termination_time)
-                    self.app.debug_log.write(f"subscription: {subscription_reference}, termination: {termination_time}")
                     reference = SubscriptionReference(xaddr=subscription_reference, event=event, termination_time=termination_time)
-                    self.app.debug_log.write(reference)
                     camera.subscription_references.append(reference)
-
                     label = f" * {node.label}"
                 node.set_label(label)
 
