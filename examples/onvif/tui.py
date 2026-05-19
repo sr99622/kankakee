@@ -428,10 +428,19 @@ class ObjectBrowser(App):
         def camera_filled(camera: Camera) -> None:
             self.call_from_thread(self.camera_tree.add_camera, camera)
 
+        def get_camera_credentials(camera: Camera) -> None:
+            if camera.name == "ANV-L7012R":
+                camera.username = "admin"
+                camera.password = "Admin123"
+            else:
+                camera.username = "admin"
+                camera.password = "admin123"
+
         try:
-            discover("10.1.1.76", camera_filled=camera_filled)
+            discover("10.1.1.76", get_camera_credentials, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
+            self.debug_log.write(traceback.format_exc())
 
 if __name__ == "__main__":
     app = ObjectBrowser()

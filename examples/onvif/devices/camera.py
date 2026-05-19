@@ -562,45 +562,50 @@ def parse_device_information_response(xml: str) -> DeviceInformation:
         hardware_id=text(elem, "tds:HardwareId"),
     )
 
-def get_camera(username: str, password: str, xaddr: str, name: str) -> Camera:
-    camera = Camera(username=username, password=password, xaddr=xaddr, name=name)
-    get_time_offset(camera)
-
+def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera], None]) -> Camera:
+    camera = Camera(xaddr=xaddr, name=name)
     try:
-        # These are the first camera queries that (may) require authorization, trap the error for user interface, don't use @safe_run
+        get_camera_credentials(camera)
+        get_time_offset(camera)
         get_capabilities(camera)
-        get_device_information(camera)
+        get_device_information(camera)        
+        get_service_capabilities(camera)
+        get_event_properties(camera)
+        #subscribe_events(camera)
+
+        get_network_interfaces(camera)
+        get_network_default_gateway(camera)
+        get_hostname(camera)
+        get_dns(camera)
+        get_ntp(camera)
+        get_profiles(camera)
+        get_audio_decoder_configurations(camera) # odd
+        for profile in camera.profiles:
+            get_stream_uri(camera, profile)
+            get_snapshot_uri(camera, profile)
+            get_video_encoder_configuration_options(camera, profile)
+            if profile.audio_encoder:
+                get_audio_encoder_configuration_options(camera, profile)
+            if camera.capabilities.imaging:    
+                get_imaging_settings(camera, profile)
+                get_imaging_options(camera, profile)
+                
     except Exception as ex:
         logger.error(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
         logger.debug(traceback.format_exc())
         if "notauthorized" in str(ex).lower():
             raise AuthorizationError("Not Authorized")
-        raise ex
-    
-    get_service_capabilities(camera)
-    get_event_properties(camera)
-    #subscribe_events(camera)
 
-    get_network_interfaces(camera)
-    get_network_default_gateway(camera)
-    get_hostname(camera)
-    get_dns(camera)
-    get_ntp(camera)
-    get_profiles(camera)
-    get_audio_decoder_configurations(camera) # odd
-    for profile in camera.profiles:
-        get_stream_uri(camera, profile)
-        get_snapshot_uri(camera, profile)
-        get_video_encoder_configuration_options(camera, profile)
-        if profile.audio_encoder:
-            get_audio_encoder_configuration_options(camera, profile)
-        if camera.capabilities.imaging:    
-            get_imaging_settings(camera, profile)
-            get_imaging_options(camera, profile)
-            
     return camera
+
+def validate_ip(arg: str) -> bool:
+    try:
+        ipaddress.ip_address(arg)
+        return True
+    except ValueError:
+        return False
  
-def discover(ip_address: str, camera_filled: Callable[[Camera], None] | None = None) -> list[Camera]:
+def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
     cameras = []
     camera_jobs = []
     msg_id = uuid.uuid4()
@@ -645,12 +650,18 @@ def discover(ip_address: str, camera_filled: Callable[[Camera], None] | None = N
                 continue
             if ip_obj.is_link_local:
                 continue
+            if not validate_ip(ip_obj):
+                continue
+            if ip_obj.is_loopback:
+                continue
+            if ip_obj == ipaddress.IPv4Address("0.0.0.0"):
+                continue
 
             camera_jobs.append((xaddr, name))
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [
-            executor.submit(get_camera, "admin", "admin123", xaddr, name)
+            executor.submit(get_camera, xaddr, name, get_camera_credentials)
             for xaddr, name in camera_jobs
         ]
 

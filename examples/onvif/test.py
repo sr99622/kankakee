@@ -8,6 +8,15 @@ import os
 import requests
 from time import sleep
 
+def get_camera_credentials(camera: Camera) -> None:
+    #print(f"GET CAMERA CREDENTIALS: {camera.xaddr}")
+    if camera.name == "ANV-L7012R":
+        camera.username = "admin"
+        camera.password = "Admin123"
+    else:
+        camera.username = "admin"
+        camera.password = "admin123"
+
 def camera_filled(camera: Camera) -> None:
     print(f"DATA FILLED FOR CAMERA {camera.name}")
     print("*", camera.name)
@@ -25,7 +34,7 @@ if __name__ == "__main__":
             if adapter.type.lower() == "loopback":
                 continue
 
-            cameras = discover(adapter.ip_address, camera_filled)
+            cameras = discover(adapter.ip_address, get_camera_credentials, camera_filled=camera_filled)
             #for camera in cameras:
             #    camera_filled(camera)
 
