@@ -41,8 +41,12 @@ class Subscriber:
         self.server: Optional[asyncio.AbstractServer] = None
         self.subscriptions: dict[str, Subscription] = {}
 
+    def get_credentials(self, camera: Camera) -> None:
+        camera.username = self.username
+        camera.password = self.password
+
     def query(self) -> Camera:
-        self.camera = get_camera(self.username, self.password, self.xaddr, self.name)
+        self.camera = get_camera(self.xaddr, self.name, self.get_credentials)
         if self.camera is None:
             raise RuntimeError("get_camera() returned None")
         return self.camera
@@ -157,7 +161,6 @@ async def main() -> None:
     )
 
     camera = subscriber.query()
-
     #if camera.event_properties:
     #    print("AVAILABLE TOPICS:")
     #    for topic in camera.event_properties.topic_set:
