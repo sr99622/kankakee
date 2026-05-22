@@ -22,6 +22,11 @@ from functools import partial, wraps
 import traceback
 from datetime import datetime, timezone, timedelta
 import argparse
+import psutil
+import socket
+import ipaddress
+from urllib.parse import unquote_plus, urlparse
+
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
@@ -64,6 +69,21 @@ class CameraTree(Tree):
             ),
         )
 
+    def find_local_subnet_matches(self, remote_target_ip: str) -> str:
+        target = ipaddress.IPv4Address(remote_target_ip)
+
+        for interface, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                # Look only for active IPv4 configurations with a valid netmask
+                if addr.family == socket.AF_INET and addr.netmask:
+                    try:
+                        network = ipaddress.IPv4Interface(f"{addr.address}/{addr.netmask}").network
+                        if target in network:
+                            print(f"Match found! {remote_target_ip} is on the same subnet as interface '{interface}' ({addr.address})")
+                            return addr.address
+                    except ValueError:
+                        continue
+
     def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
             print("resubscribe_event")
@@ -77,7 +97,16 @@ class CameraTree(Tree):
                 camera.subscription_references.remove(reference)
                 self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
 
-            xml = subscribe_events(camera, event, self.app.ip_address)
+            print(f"self.app.ip_address: {self.app.ip_address}")
+            print(f"event under consideration: {event}")
+            ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
+            print(f"camera ip: {ip_obj}")
+            ip_address = self.app.ip_address
+            if ip_address == "0.0.0.0":
+                ip_address = self.find_local_subnet_matches(ip_obj)
+            print(f"event listener address: {ip_address}")
+
+            xml = subscribe_events(camera, event, ip_address)
             print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
@@ -410,11 +439,25 @@ class ObjectBrowser(App):
         yield self.edit_input
         yield Footer()
 
+    def find_adapters(self) -> None:
+        self.ips = []
+        VIRTUAL_KEYWORDS = {'docker', 'veth', 'vboxnet', 'vmware', 'virtual', 'wsl'}
+        for interface, addrs in psutil.net_if_addrs().items():
+            if any(keyword in interface.lower() for keyword in VIRTUAL_KEYWORDS):
+                continue
+            for addr in addrs:
+                if addr.family == socket.AF_INET:
+                    if ipaddress.ip_address(addr.address).is_loopback:
+                        continue
+                    self.ips.append(addr.address)
+
     def on_mount(self) -> None:
         self.httpd = None
         self.run_worker(self.discover_worker, thread=True)
         print(f"self.httpd {self.httpd}")
         #self.run_worker(self.http_server_worker, thread=True)
+        self.find_adapters()
+        print(self.ips)
 
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
         for alarm in alarms:
