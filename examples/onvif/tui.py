@@ -66,11 +66,19 @@ class CameraTree(Tree):
 
     def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
+            print("resubscribe_event")
+            if self.app.httpd:
+                print("HAVE HTTPD")
+            else:
+                print("starting http worker thread")
+                self.app.ensure_http_server_running()
+                #self.app.call_from_thread(self.app.ensure_http_server_running)
             if reference := self.get_reference_for_event(camera, event):
                 camera.subscription_references.remove(reference)
                 self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
 
             xml = subscribe_events(camera, event, self.app.ip_address)
+            print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
             dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
@@ -90,12 +98,9 @@ class CameraTree(Tree):
 
             camera.subscription_references.append(reference)
         except Exception as ex:
-            #self.app.call_from_thread(self.app.debug_log.write, f"resubscribe event errror: {ex}")
-            #self.app.call_from_thread(self.app.debug_log.write, traceback.format_exc())
-            f = open("errors.txt", "w")
-            f.write(f"resubscribe event errror: {ex}")
-            f.write(traceback.format_exc())
-            f.close()
+            #self.app.debug_log.write, f"resubscribe event errror: {ex}"
+            #self.app.debug_log.write, traceback.format_exc()
+            print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
 
     def action_event(self) -> None:
         if node := self.cursor_node:
@@ -103,11 +108,14 @@ class CameraTree(Tree):
                 camera = node.data["camera"]
                 event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
+                    print("unsubscribe", flush=True)
                     if reference := self.get_reference_for_event(camera, event):
+                        print(f"found event: {event}")
                         reference.resubscribe_timer.stop()
                         self.app.debug_log.write(reference.xaddr)
                         self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
                         camera.subscription_references.remove(reference)
+                        print(f"subscription_references count: {len(camera.subscription_references)}")
                     label = node.label.plain[3:]
                 else:
                     self.resubscribe_event(camera, event)
@@ -403,6 +411,13 @@ class ObjectBrowser(App):
     def on_mount(self) -> None:
         self.httpd = None
         self.run_worker(self.discover_worker, thread=True)
+        print(f"self.httpd {self.httpd}")
+        #self.run_worker(self.http_server_worker, thread=True)
+
+    def ensure_http_server_running(self) -> None:
+        if self.httpd:
+            return
+        print("still not working", flush=True)
         self.run_worker(self.http_server_worker, thread=True)
 
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
@@ -414,21 +429,24 @@ class ObjectBrowser(App):
         self.call_from_thread(self.handle_camera_events, alarms)
 
     def http_server_worker(self) -> None:
+        print("http_server_worker starting", flush=True)
         try:
-            print("http_server_worker start")
             handler = partial(Handler, my_arg=self.on_camera_events_from_thread)
 
             with Server((self.ip_address, PORT), handler) as httpd:
+                print(f"http server worker start at {self.ip_address}:{PORT}, flush=True")
                 self.httpd = httpd
-                print("start serving http")
                 httpd.serve_forever()
 
         except Exception as ex:
             print(f"exception in server worker{ex}")
             self.call_from_thread(
                 self.debug_log.write,
-                f"HTTP SERVER ERROR: {ex}",
+                f"HTTP SERVER ERROR: {ex}\n{traceback.format_exc()}",
             )
+
+        finally:
+            self.httpd = None
 
     def on_unmount(self) -> None:
         if self.httpd is not None:
