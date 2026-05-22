@@ -40,9 +40,6 @@ class EventProperties:
     fixed_topic_set: Optional[bool] = None
     producer_properties_filter_dialect: list[str] = field(default_factory=list)
     topic_expression_dialect: list[str] = field(default_factory=list)
-    subscription_reference: Optional[str] = None
-    termination_time: Optional[str] = None
-    subscription_references: list[SubscriptionReference] = None
 
 
 def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:

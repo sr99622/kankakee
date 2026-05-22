@@ -65,6 +65,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_POST(self):
+        print("DO POST")
         if self.path == "/onvif/events":
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)

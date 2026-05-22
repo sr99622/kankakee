@@ -21,6 +21,7 @@ from server import Server, Handler, PORT
 from functools import partial, wraps
 import traceback
 from datetime import datetime, timezone, timedelta
+import argparse
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
@@ -53,23 +54,27 @@ class CameraTree(Tree):
         for reference in camera.subscription_references:
             if reference.event == event:
                 return reference
-            
+
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
-         return self.set_timer(
+        print("schedule_resubscribe_event")
+        return self.set_timer(
             max(1.0, delay),
             lambda: self.run_worker(
                 lambda: self.resubscribe_event(camera, event),
                 thread=True,
             ),
         )
-            
+
     def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
+            print("resubscribe_event")
             if reference := self.get_reference_for_event(camera, event):
                 camera.subscription_references.remove(reference)
                 self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
 
+            print("wheres the fucking cursor") 
             xml = subscribe_events(camera, event)
+            print(xml)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
             dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
@@ -125,7 +130,7 @@ class CameraTree(Tree):
                 parts.append(data["field"])
             current = parent
         return ".".join(reversed(parts))
-    
+
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.app.debug_log.clear()
         if event.node.data and event.node.data.get("fqn"):
@@ -139,14 +144,14 @@ class CameraTree(Tree):
         label.append(f"{field}: ")
         label.append(str(value))
         return label
-    
+
     def action_reboot(self) -> None:
         if node := self.cursor_node:
             if node.parent.parent is None:
                 if not node.data:
                     self.app.debug_log.write(f"Error: missing node data for camera")
                     return
-                
+
                 camera = node.data["camera"]
                 self.app.push_screen(
                     ConfirmRebootScreen(camera.name),
@@ -181,7 +186,7 @@ class CameraTree(Tree):
     def _collapse_recursive(self, node: TreeNode) -> None:
         for child in node.children:
             self._collapse_recursive(child)
-        node.collapse()        
+        node.collapse()
 
     def add_camera(self, camera: Camera) -> None:
         label = camera.name
@@ -243,6 +248,11 @@ class CameraTree(Tree):
             node.data = {"camera": camera, "field": name, "fqn": fqn}
 
 class ObjectBrowser(App):
+
+    def __init__(self, ip_address: str) -> None:
+        super().__init__()
+        self.ip_address = ip_address
+
     BINDINGS = [
         ("q", "quit", "Quit"),
         Binding("e", "edit_selected", "Edit"),
@@ -255,14 +265,14 @@ class ObjectBrowser(App):
     }
 
     CameraTree {
-        width: 60%;
+        width: 50%;
         height: 1fr;
         border: solid green;
         padding: 1 2;
     }
 
     #debug_log {
-        width: 40%;
+        width: 50%;
         height: 1fr;
         border: solid blue;
         padding: 1;
@@ -291,7 +301,7 @@ class ObjectBrowser(App):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:
             return
-        
+
         self.debug_log.write(f"ON INPUT SUBMITTED: {self.editing_node.data["fqn"]}")
 
         try:
@@ -404,17 +414,21 @@ class ObjectBrowser(App):
             self.debug_log.write(str(alarm))
 
     def on_camera_events_from_thread(self, alarms: list[dict[str, str]]) -> None:
+        print(f"on_camera_events_from_thread: {alarms}")
         self.call_from_thread(self.handle_camera_events, alarms)
 
     def http_server_worker(self) -> None:
         try:
+            print("http_server_worker start")
             handler = partial(Handler, my_arg=self.on_camera_events_from_thread)
 
             with Server(("", PORT), handler) as httpd:
                 self.httpd = httpd
+                print("start serving http")
                 httpd.serve_forever()
 
         except Exception as ex:
+            print(f"exception in server worker{ex}")
             self.call_from_thread(
                 self.debug_log.write,
                 f"HTTP SERVER ERROR: {ex}",
@@ -437,11 +451,14 @@ class ObjectBrowser(App):
                 camera.password = "admin123"
 
         try:
-            discover("10.1.1.76", get_camera_credentials, camera_filled=camera_filled)
+            discover(self.ip_address, get_camera_credentials, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
             self.debug_log.write(traceback.format_exc())
 
 if __name__ == "__main__":
-    app = ObjectBrowser()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-ip", "--ip_address", default="0.0.0.0", help="Local IP address binding for ONVIF discover/event callback")
+    args = parser.parse_args()
+    app = ObjectBrowser(args.ip_address)
     app.run() 

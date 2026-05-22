@@ -378,7 +378,7 @@ def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfigu
 
 
 def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfiguration) -> str:
-    
+
     ip = ipaddress.ip_address(encoder.multicast.ip_address)
     if ip.version == 4:
         address_xml = f"""
@@ -413,7 +413,7 @@ def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfigu
 
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-    
+
 def set_imaging_settings(camera: Camera, video_source_token: str, imaging: ImagingSettings) -> str:
     ir_cut_filter = f"""
         <tt:IrCutFilter>{imaging.ir_cut_filter}</tt:IrCutFilter>""" if imaging.ir_cut_filter else ""
@@ -453,7 +453,7 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, 
         </tt:IPv4>
     </tt:NetworkInterface>
 </tds:SetNetworkInterfaces>""".strip()
-    
+
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def reboot(camera: Camera) -> str:
@@ -467,7 +467,7 @@ def set_network_default_gateway(camera: Camera) -> str:
 <tds:SetNetworkDefaultGateway>
     <tt:IPv4Address>{camera.network_gateway}</tt:IPv4Address>
 </tds:SetNetworkDefaultGateway>""".strip()
-    
+
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_hostname_from_dhcp(camera: Camera) -> str:
@@ -475,7 +475,7 @@ def set_hostname_from_dhcp(camera: Camera) -> str:
 <tds:SetHostnameFromDHCP>
     <tds:FromDHCP>{str(camera.hostname.from_dhcp).lower()}</tds:FromDHCP>
 </tds:SetHostnameFromDHCP>""".strip()
-    
+
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_hostname(camera: Camera) -> str:
@@ -484,7 +484,7 @@ def set_hostname(camera: Camera) -> str:
     <tds:Name>{camera.hostname.name}</tds:Name>
 </tds:SetHostname>
 """.strip()
-    
+
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_dns(camera: Camera) -> str:
@@ -511,19 +511,20 @@ def set_dns(camera: Camera) -> str:
     <tds:FromDHCP>{str(camera.dns.from_dhcp).lower()}</tds:FromDHCP>{manual_xml}
 </tds:SetDNS>
 """.strip()
-    
+
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
 def subscribe_events(camera: Camera, event: str) -> str:
-    callback_url = "http://10.1.1.76:8800/onvif/events"
+    callback_url = "http://10.1.1.66:8800/onvif/events"
+    print(f"eat my fucking shit: {callback_url}")
     initial_termination_time = "PT1M"
 
-    filter = f"""    
+    filter = f"""
                 <wsnt:Filter>
                     <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
                 </wsnt:Filter>"""
-    
+
     body = f"""
         <wsnt:Subscribe>
             <wsnt:ConsumerReference>
@@ -531,7 +532,7 @@ def subscribe_events(camera: Camera, event: str) -> str:
             </wsnt:ConsumerReference>{filter}
             <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
         </wsnt:Subscribe>""".strip()
-    
+
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml
 
@@ -568,7 +569,7 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_camera_credentials(camera)
         get_time_offset(camera)
         get_capabilities(camera)
-        get_device_information(camera)        
+        get_device_information(camera)
         get_service_capabilities(camera)
         get_event_properties(camera)
         #subscribe_events(camera)
@@ -586,10 +587,10 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
             get_video_encoder_configuration_options(camera, profile)
             if profile.audio_encoder:
                 get_audio_encoder_configuration_options(camera, profile)
-            if camera.capabilities.imaging:    
+            if camera.capabilities.imaging:
                 get_imaging_settings(camera, profile)
                 get_imaging_options(camera, profile)
-                
+
     except Exception as ex:
         logger.error(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
         logger.debug(traceback.format_exc())
@@ -604,7 +605,7 @@ def validate_ip(arg: str) -> bool:
         return True
     except ValueError:
         return False
- 
+
 def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
     cameras = []
     camera_jobs = []
