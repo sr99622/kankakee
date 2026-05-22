@@ -71,8 +71,8 @@ class CameraTree(Tree):
                 print("HAVE HTTPD")
             else:
                 print("starting http worker thread")
-                self.app.ensure_http_server_running()
-                #self.app.call_from_thread(self.app.ensure_http_server_running)
+                self.app.run_worker(self.app.http_server_worker, thread=True)
+
             if reference := self.get_reference_for_event(camera, event):
                 camera.subscription_references.remove(reference)
                 self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
@@ -116,6 +116,9 @@ class CameraTree(Tree):
                         self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
                         camera.subscription_references.remove(reference)
                         print(f"subscription_references count: {len(camera.subscription_references)}")
+                        if not len(camera.subscription_references) and self.app.httpd:
+                            self.app.httpd.shutdown()
+                            self.app.httpd = None
                     label = node.label.plain[3:]
                 else:
                     self.resubscribe_event(camera, event)
@@ -374,7 +377,6 @@ class ObjectBrowser(App):
         self.set_focus(self.camera_tree)
 
     def action_edit_selected(self) -> None:
-
         node = self.camera_tree.cursor_node
         if node is None or not node.data:
             return
@@ -413,12 +415,6 @@ class ObjectBrowser(App):
         self.run_worker(self.discover_worker, thread=True)
         print(f"self.httpd {self.httpd}")
         #self.run_worker(self.http_server_worker, thread=True)
-
-    def ensure_http_server_running(self) -> None:
-        if self.httpd:
-            return
-        print("still not working", flush=True)
-        self.run_worker(self.http_server_worker, thread=True)
 
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
         for alarm in alarms:
