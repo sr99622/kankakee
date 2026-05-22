@@ -515,9 +515,8 @@ def set_dns(camera: Camera) -> str:
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def subscribe_events(camera: Camera, event: str) -> str:
-    callback_url = "http://10.1.1.66:8800/onvif/events"
-    print(f"eat my fucking shit: {callback_url}")
+def subscribe_events(camera: Camera, event: str, ip_address: str) -> str:
+    callback_url = f"http://{ip_address}:8800/onvif/events"
     initial_termination_time = "PT1M"
 
     filter = f"""
@@ -572,7 +571,6 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_device_information(camera)
         get_service_capabilities(camera)
         get_event_properties(camera)
-        #subscribe_events(camera)
 
         get_network_interfaces(camera)
         get_network_default_gateway(camera)

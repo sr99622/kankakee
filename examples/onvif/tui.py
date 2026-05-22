@@ -56,7 +56,6 @@ class CameraTree(Tree):
                 return reference
 
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
-        print("schedule_resubscribe_event")
         return self.set_timer(
             max(1.0, delay),
             lambda: self.run_worker(
@@ -67,14 +66,11 @@ class CameraTree(Tree):
 
     def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
-            print("resubscribe_event")
             if reference := self.get_reference_for_event(camera, event):
                 camera.subscription_references.remove(reference)
                 self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
 
-            print("wheres the fucking cursor") 
-            xml = subscribe_events(camera, event)
-            print(xml)
+            xml = subscribe_events(camera, event, self.app.ip_address)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
             dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
@@ -422,7 +418,7 @@ class ObjectBrowser(App):
             print("http_server_worker start")
             handler = partial(Handler, my_arg=self.on_camera_events_from_thread)
 
-            with Server(("", PORT), handler) as httpd:
+            with Server((self.ip_address, PORT), handler) as httpd:
                 self.httpd = httpd
                 print("start serving http")
                 httpd.serve_forever()
