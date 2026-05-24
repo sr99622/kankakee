@@ -536,11 +536,11 @@ def subscribe_events(camera: Camera, event: str, ip_address: str) -> str:
     return xml
 
 @safe_run
-def unsubscribe(camera: Camera, subscription_reference: str):
+def unsubscribe(camera: Camera, subscription_reference_xaddr: str):
     body = f"""
 <wsnt:Unsubscribe/>
 """
-    return onvif_post(subscription_reference, body, camera.username, camera.password, camera.time_offset)
+    return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
     root = ET.fromstring(xml)

@@ -213,14 +213,6 @@ class ObjectBrowser(App):
                         continue
                     self.ips.append(addr.address)
 
-    def on_mount(self) -> None:
-        self.httpd = None
-        self.run_worker(self.discover_worker, thread=True)
-        print(f"self.httpd {self.httpd}")
-        #self.run_worker(self.http_server_worker, thread=True)
-        self.find_adapters()
-        print(self.ips)
-
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
         for alarm in alarms:
             self.debug_log.write(str(alarm))
@@ -249,9 +241,26 @@ class ObjectBrowser(App):
         finally:
             self.httpd = None
 
+    def on_mount(self) -> None:
+        self.httpd = None
+        self.run_worker(self.discover_worker, thread=True)
+        print(f"self.httpd {self.httpd}")
+        self.find_adapters()
+        print(self.ips)
+        print("object browser constructor")
+        self.loop_callback = self.set_interval(1, self.main_loop)
+
     def on_unmount(self) -> None:
         if self.httpd is not None:
             self.httpd.shutdown()
+        for child in self.camera_tree.root.children:
+            print(f"camera: {child.label}")
+            if not child.data:
+                continue
+            if camera := child.data.get("camera"):
+                for reference in camera.subscription_references:
+                    print(unsubscribe(camera, reference.xaddr))
+                    #dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
 
     def discover_worker(self) -> None:
         def camera_filled(camera: Camera) -> None:
@@ -270,6 +279,12 @@ class ObjectBrowser(App):
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
             self.debug_log.write(traceback.format_exc())
+
+    def main_loop(self) -> None:
+        ...
+        #print("hello from the main loop")
+        #for child in self.camera_tree.root.children:
+        #    print(child.label)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
