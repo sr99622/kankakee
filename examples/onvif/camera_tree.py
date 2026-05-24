@@ -113,8 +113,6 @@ class CameraTree(Tree):
 
             camera.subscription_references.append(reference)
         except Exception as ex:
-            #self.app.debug_log.write, f"resubscribe event errror: {ex}"
-            #self.app.debug_log.write, traceback.format_exc()
             print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
 
     def action_event(self) -> None:
@@ -125,20 +123,10 @@ class CameraTree(Tree):
                 if node.label.plain.startswith(" * "):
                     print("unsubscribe", flush=True)
                     if reference := self.get_reference_for_event(camera, event):
-                        #print(f"found event: {event}")
                         reference.resubscribe_timer.stop()
-                        #print(f"reference termination time: {reference.termination_time}")
-                        #print(f"camera time offset: {camera.time_offset}")
-                        #termination_time = datetime.fromisoformat(reference.termination_time.replace("Z", "+00:00"))
-                        #print(f"termination_time: {termination_time:while}")
-                        #current_utc = datetime.now(timezone.utc)
-                        #print(f"current_utc: {current_utc}")
-                        #delta_t = (termination_time - current_utc).total_seconds() - camera.time_offset
-                        #print(f"delta_t: {delta_t}")
                         self.app.debug_log.write(reference.xaddr)
                         self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
                         camera.subscription_references.remove(reference)
-                        #print(f"subscription_references count: {len(camera.subscription_references)}")
                         if not len(camera.subscription_references) and self.app.httpd:
                             self.app.httpd.shutdown()
                             self.app.httpd = None
