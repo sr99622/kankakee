@@ -31,20 +31,6 @@ from camera_tree import CameraTree
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
-class ConfirmRebootScreen(ModalScreen[bool]):
-    def __init__(self, camera_name: str) -> None:
-        super().__init__()
-        self.camera_name = camera_name
-
-    def compose(self):
-        with Vertical(id="confirm_dialog"):
-            yield Label(f"Reboot camera '{self.camera_name}'?")
-            yield Button("Cancel", id="cancel", variant="primary")
-            yield Button("Reboot", id="reboot", variant="error")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "reboot")
-
 class ObjectBrowser(App):
 
     def __init__(self, ip_address: str) -> None:
@@ -53,7 +39,7 @@ class ObjectBrowser(App):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
-        Binding("e", "edit_selected", "Edit"),
+        Binding("f2", "edit_selected", "Edit"),
         Binding("escape", "cancel_edit", "Cancel"),
     ]
 

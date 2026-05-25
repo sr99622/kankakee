@@ -30,14 +30,29 @@ from urllib.parse import unquote_plus, urlparse
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
+class ConfirmRebootScreen(ModalScreen[bool]):
+    def __init__(self, camera_name: str) -> None:
+        super().__init__()
+        self.camera_name = camera_name
+
+    def compose(self):
+        with Vertical(id="confirm_dialog"):
+            yield Label(f"Reboot camera '{self.camera_name}'?")
+            yield Button("Cancel", id="cancel", variant="primary")
+            yield Button("Reboot", id="reboot", variant="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "reboot")
+
+
 class CameraTree(Tree):
     def __init__(self) -> None:
         super().__init__("Cameras")
         self.show_root = True
 
     BINDINGS = [
-        ("]", "toggle_recursive", "Open/close all"),
-        ("r", "reboot", "Reboot Selected"),
+        ("]", "toggle_recursive", "Branch"),
+        ("r", "reboot", "Reboot"),
         ("v", "event", "Event"),
     ]
 
