@@ -315,6 +315,11 @@ def get_imaging_options(camera: Camera, profile: Profile) -> None:
     xml = onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(profile, "imaging_options", parse_imaging_options_response(xml))
 
+@safe_run
+def get_status(camera: Camera, token: str) -> str:
+    body = f"""<tptz:GetStatus><tptz:ProfileToken>{token}</tptz:ProfileToken></tptz:GetStatus>"""
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
 
     ip = ipaddress.ip_address(encoder.multicast.ip_address)

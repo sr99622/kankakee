@@ -7,15 +7,16 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Label
 from textual.containers import Vertical
 from textual.timer import Timer
+from textual import events
 from dataclasses import is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
 from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn_owner, \
-        convert_string_value, join_fqn, is_editable_field, normalize_fqn
+        convert_string_value, join_fqn, is_editable_field, normalize_fqn, ptz_screen
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe
+        unsubscribe, get_status
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
 from functools import partial, wraps
@@ -81,6 +82,32 @@ class ObjectBrowser(App):
         display: none;
     }
     """
+
+    def on_key(self, event: events.Key) -> None:
+        print(f"event: {event}")
+        node = self.camera_tree.cursor_node
+        print(f"node: {node.label}")
+        if not node.data: return
+        if not (camera := node.data.get("camera")): return
+        print(f"CAMERA NAME: {camera.name}")
+        profile_token = camera.profiles[0].token
+        print(f"PROFILE TOKEN: {profile_token}")
+        if node.data.get("fqn") == "capabilities.ptz.xaddr":
+            print("found ptz node")
+            self.app.debug_log.clear()
+            self.app.debug_log.write(ptz_screen)
+            match event.key:
+                case 'w':
+                    self.app.debug_log.write(f"\nmoving up...")
+                case 'i':
+                    self.app.debug_log.write(f"\ninformation\n")
+                    xml = get_status(camera, profile_token)
+                    pan_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@x")
+                    pan_y = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@y")
+                    zoom_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:Zoom/@x")
+                    pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
+                    zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
+                    self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:

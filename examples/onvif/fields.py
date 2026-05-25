@@ -193,6 +193,25 @@ def analyze_field_type(field_type: Any) -> tuple[Any, bool, bool]:
 
     return field_type, is_optional, False
 
+ptz_screen = \
+"""
+PPPp   TTTTTTT  ZZZZZZ
+P   p     T         Z  
+P   p     T        Z
+PPP       T       Z
+P         T      Z
+P         T     ZZZZZZ
+
+
+w - up
+s - down
+a - left
+d - right
+z - zoom in
+x - zoom out
+c - stop
+"""
+
 field_descriptions = {
     "network_gateway": 
 """
@@ -248,6 +267,12 @@ automatically using DHCP. If this value is
 set to False, there should be at least one
 value set in the dns_manual list to identify 
 DNS servers
+""",
+
+    "capabilities.ptz.xaddr":
+"""
+If this field is available, the camera may
+have PTZ. Use the enter key to start PTZ mode
 """
 
 }
