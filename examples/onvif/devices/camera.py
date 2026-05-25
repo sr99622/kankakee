@@ -321,7 +321,7 @@ def get_status(camera: Camera, token: str) -> str:
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def continuous_move(camera: Camera, token: str, x: float, y: float, z: float):
+def continuous_move(camera: Camera, token: str, x: float, y: float, z: float) -> str:
     if z == 0:
         velocity = f"""
         <tt:PanTilt x="{x:.2f}" y="{y:.2f}"/>"""
@@ -335,11 +335,11 @@ def continuous_move(camera: Camera, token: str, x: float, y: float, z: float):
     </tptz:Velocity>
 </tptz:ContinuousMove>""".strip()
 
+    print(body)
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-#    return body
 
 @safe_run
-def move_stop(camera: Camera, token: str, is_zoom: bool=False):
+def move_stop(camera: Camera, token: str, is_zoom: bool=False) -> str:
     if is_zoom:
         zoom_flag = "true"
         pan_tilt_flag = "false"
@@ -356,7 +356,6 @@ def move_stop(camera: Camera, token: str, is_zoom: bool=False):
     """
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-#    return body
     
 
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:

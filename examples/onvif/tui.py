@@ -84,6 +84,7 @@ class ObjectBrowser(App):
     """
 
     def on_key(self, event: events.Key) -> None:
+        self.is_zoom_move = False
         print(f"event: {event}")
         node = self.camera_tree.cursor_node
         print(f"node: {node.label}")
@@ -115,15 +116,17 @@ class ObjectBrowser(App):
                     print(xml)
                 case 'z':
                     self.app.debug_log.write(f"\nzooming in...")
-                    xml = continuous_move(camera, profile_token, 0, 0, 0,5)
+                    xml = continuous_move(camera, profile_token, 0, 0, 0.5)
+                    self.is_zoom_move = True 
                     print(xml)
                 case 'x':
                     self.app.debug_log.write(f"\nzooming out...")
                     xml = continuous_move(camera, profile_token, 0, 0, -0.5)
+                    self.is_zoom_move = True
                     print(xml)
                 case 'c':
                     self.app.debug_log.write(f"\nstop move")
-                    xml = move_stop(camera, profile_token, True)
+                    xml = move_stop(camera, profile_token, self.is_zoom_move)
                     print(xml)
                 case 'i':
                     self.app.debug_log.write(f"\ninformation\n")
