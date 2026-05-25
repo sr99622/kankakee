@@ -16,7 +16,7 @@ from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe, get_status
+        unsubscribe, get_status, continuous_move, move_stop
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
 from functools import partial, wraps
@@ -99,6 +99,32 @@ class ObjectBrowser(App):
             match event.key:
                 case 'w':
                     self.app.debug_log.write(f"\nmoving up...")
+                    xml = continuous_move(camera, profile_token, 0, 0.5, 0)
+                    print(xml)
+                case 's':
+                    self.app.debug_log.write(f"\nmoving down...")
+                    xml = continuous_move(camera, profile_token, 0, -0.5, 0)
+                    print(xml)
+                case 'a':
+                    self.app.debug_log.write(f"\npanning right...")
+                    xml = continuous_move(camera, profile_token, 0.5, 0, 0)
+                    print(xml)
+                case 'd':
+                    self.app.debug_log.write(f"\npanning left...")
+                    xml = continuous_move(camera, profile_token, -0.5, 0, 0)
+                    print(xml)
+                case 'z':
+                    self.app.debug_log.write(f"\nzooming in...")
+                    xml = continuous_move(camera, profile_token, 0, 0, 0,5)
+                    print(xml)
+                case 'x':
+                    self.app.debug_log.write(f"\nzooming out...")
+                    xml = continuous_move(camera, profile_token, 0, 0, -0.5)
+                    print(xml)
+                case 'c':
+                    self.app.debug_log.write(f"\nstop move")
+                    xml = move_stop(camera, profile_token, True)
+                    print(xml)
                 case 'i':
                     self.app.debug_log.write(f"\ninformation\n")
                     xml = get_status(camera, profile_token)

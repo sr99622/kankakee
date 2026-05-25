@@ -320,6 +320,45 @@ def get_status(camera: Camera, token: str) -> str:
     body = f"""<tptz:GetStatus><tptz:ProfileToken>{token}</tptz:ProfileToken></tptz:GetStatus>"""
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
+def continuous_move(camera: Camera, token: str, x: float, y: float, z: float):
+    if z == 0:
+        velocity = f"""
+        <tt:PanTilt x="{x:.2f}" y="{y:.2f}"/>"""
+    else:
+        velocity = f"""
+        <tt:Zoom x="{z:.2f}"/>"""
+    body = f"""
+<tptz:ContinuousMove>
+    <tptz:ProfileToken>{token}</tptz:ProfileToken>
+    <tptz:Velocity>{velocity}
+    </tptz:Velocity>
+</tptz:ContinuousMove>""".strip()
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+#    return body
+
+@safe_run
+def move_stop(camera: Camera, token: str, is_zoom: bool=False):
+    if is_zoom:
+        zoom_flag = "true"
+        pan_tilt_flag = "false"
+    else:
+        zoom_flag = "false"
+        pan_tilt_flag = "true"
+
+    body = f"""
+<tptz:Stop>
+    <tptz:ProfileToken>{token}</tptz:ProfileToken>
+    <tptz:PanTilt>{pan_tilt_flag}</tptz:PanTilt>
+    <tptz:Zoom>{zoom_flag}</tptz:Zoom>
+</tptz:Stop>
+    """
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+#    return body
+    
+
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
 
     ip = ipaddress.ip_address(encoder.multicast.ip_address)

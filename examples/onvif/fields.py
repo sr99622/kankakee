@@ -210,6 +210,7 @@ d - right
 z - zoom in
 x - zoom out
 c - stop
+i - info
 """
 
 field_descriptions = {
