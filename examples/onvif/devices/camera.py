@@ -330,9 +330,29 @@ def get_presets(camera: Camera, token: str) -> None:
 
 @safe_run
 def remove_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
-    body = f"""<tptz:RemovePreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken><tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
+    body = f"""
+<tptz:RemovePreset>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tptz:PresetToken>{preset_token}</tptz:PresetToken>
+</tptz:RemovePreset>""".strip()
+    print(body)
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml
+
+@safe_run
+def goto_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
+    body = f"""
+<tptz:GotoPreset>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tptz:PresetToken>{preset_token}</tptz:PresetToken>
+</tptz:GotoPreset>""".strip()
+    print(body)
+    
+    #body = f"""<tptz:RemovePreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken><tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    return xml
+
+
 
 @safe_run
 def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> str:

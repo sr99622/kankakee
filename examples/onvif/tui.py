@@ -16,7 +16,8 @@ from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset
+        unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
+        remove_preset, goto_preset
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
@@ -144,7 +145,7 @@ class ObjectBrowser(App):
 
         if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
                 #:writeif fqn.startswith("capabilities.ptz.presets.["):
-            print(f"FOUND PRESET NODE: {fqn}")
+            print(f"FQN: {fqn}")
             match event.key:
                 case 'p':
                     #self.app.debug_log.write(f"\ninformation\n")
@@ -158,10 +159,38 @@ class ObjectBrowser(App):
 
                     print(set_preset(camera, profile_token))
                 case 'd':
-                    print(f"FQN: {fqn}")
-                    #print(remove_preset(camera, profile_token, "11"))
+                    preset_token = None
+                    if match := re.search(r"\[(\d+)\]", fqn):
+                        index = int(match.group(1))
+                        print(f"INDEX: {index}")
+                        #preset = camera.capabilities.ptz.presets[index]
+                        preset = camera.capabilities.ptz.presets.pop(index)
+                        print(f"PRESET token: {preset.token}")
+                        preset_token = preset.token
+                    if not preset_token: return
+                    print(remove_preset(camera, profile_token, preset_token))
+                    if node := self.camera_tree.cursor_node:
+                        parent = node.parent
+                        self.camera_tree.move_cursor(parent)
+                        node.remove()
+                        new_count = len(camera.capabilities.ptz.presets)
+                        print(f"list size for presets: {new_count}")
+                        parent.set_label(f"presets: [{new_count}]")
+                        self.camera_tree.refresh()
+                case 'g':
+                    preset_token = None
+                    if match := re.search(r"\[(\d+)\]", fqn):
+                        index = int(match.group(1))
+                        print(f"INDEX: {index}")
+                        #preset = camera.capabilities.ptz.presets[index]
+                        preset = camera.capabilities.ptz.presets[index]
+                        print(f"PRESET token: {preset.token}")
+                        preset_token = preset.token
+                    if not preset_token: return
+                    print(goto_preset(camera, profile_token, preset_token))
 
-        #    self.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
+
+
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:
