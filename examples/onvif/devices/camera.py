@@ -329,6 +329,22 @@ def get_presets(camera: Camera, token: str) -> None:
     #return xml
 
 @safe_run
+def remove_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
+    body = f"""<tptz:RemovePreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken><tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    return xml
+
+@safe_run
+def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> str:
+    preset = ""
+    if preset_token:
+        preset = f"""<tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
+    body = f"""<tptz:SetPreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken>{preset}</tptz:SetPreset>"""
+    #return body
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    return xml
+
+@safe_run
 def continuous_move(camera: Camera, token: str, x: float, y: float, z: float) -> str:
     if z == 0:
         velocity = f"""

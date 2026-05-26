@@ -211,7 +211,11 @@ d - right
 z - zoom in
 x - zoom out
 c - stop
-p - get presets
+"""
+
+ptz_presets = \
+"""
+
 """
 
 field_descriptions = {
@@ -275,6 +279,14 @@ DNS servers
 """
 If this field is available, the camera may
 have PTZ. Use the enter key to start PTZ mode
+""",
+
+    "capabilities.ptz.presets":
 """
+Available ptz presets are shown in this branch.
+You can assign the current position to a preset
+by selecting the preset with the enter key and
+typing the 'p' key.
+""",
 
 }

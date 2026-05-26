@@ -16,7 +16,7 @@ from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe, get_status, continuous_move, move_stop, get_presets
+        unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
@@ -29,6 +29,7 @@ import socket
 import ipaddress
 from urllib.parse import unquote_plus, urlparse
 from camera_tree import CameraTree
+import re
 
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
@@ -88,13 +89,15 @@ class ObjectBrowser(App):
         self.is_zoom_move = False
         print(f"event: {event}")
         node = self.camera_tree.cursor_node
-        print(f"node: {node.label}")
         if not node.data: return
         if not (camera := node.data.get("camera")): return
+        print(f"node: {node.data.get("fqn")}")
         print(f"CAMERA NAME: {camera.name}")
         profile_token = camera.profiles[0].token
         print(f"PROFILE TOKEN: {profile_token}")
-        if node.data.get("fqn") == "capabilities.ptz.xaddr":
+        fqn = node.data.get("fqn")
+        if not fqn: return
+        if fqn == "capabilities.ptz.xaddr":
             print("found ptz node")
             self.app.debug_log.clear()
             self.app.debug_log.write(ptz_screen)
@@ -125,13 +128,6 @@ class ObjectBrowser(App):
                     xml = continuous_move(camera, profile_token, 0, 0, -0.5)
                     self.is_zoom_move = True
                     print(xml)
-                case 'p':
-                    self.app.debug_log.write(f"\nget presets")
-                    if xml := get_presets(camera, profile_token):
-                        print(xml)
-                        presets = parse_get_presets_response(xml)
-                        for preset in presets:
-                            self.app.debug_log.write(preset.token)
                 case 'c':
                     self.app.debug_log.write(f"\nstop move")
                     xml = move_stop(camera, profile_token, self.is_zoom_move)
@@ -145,6 +141,27 @@ class ObjectBrowser(App):
                     pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
                     zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
                     self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
+
+        if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
+                #:writeif fqn.startswith("capabilities.ptz.presets.["):
+            print(f"FOUND PRESET NODE: {fqn}")
+            match event.key:
+                case 'p':
+                    #self.app.debug_log.write(f"\ninformation\n")
+                    #xml = get_status(camera, profile_token)
+                    #pan_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@x")
+                    #pan_y = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@y")
+                    #zoom_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:Zoom/@x")
+                    #pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
+                    #zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
+                    #self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
+
+                    print(set_preset(camera, profile_token))
+                case 'd':
+                    print(f"FQN: {fqn}")
+                    #print(remove_preset(camera, profile_token, "11"))
+
+        #    self.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:

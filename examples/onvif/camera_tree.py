@@ -26,7 +26,7 @@ import psutil
 import socket
 import ipaddress
 from urllib.parse import unquote_plus, urlparse
-
+import re
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
@@ -166,10 +166,17 @@ class CameraTree(Tree):
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         self.app.debug_log.clear()
-        if event.node.data and event.node.data.get("fqn"):
-            self.app.debug_log.write(event.node.data["fqn"])
-            if desc := field_descriptions.get(event.node.data["fqn"]):
-                self.app.debug_log.write(desc)
+        if not event.node.data: return
+        fqn = event.node.data.get("fqn")
+        if not fqn: return
+
+        self.app.debug_log.write(fqn)
+        if desc := field_descriptions.get(fqn):
+            self.app.debug_log.write(desc)
+        #if fqn.startswith("capabilities.ptz.presets.["):
+        if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
+            self.app.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
+
 
     def _make_editable_label(self, field: str, value: str) -> Text:
         label = Text()
