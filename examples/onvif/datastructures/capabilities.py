@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, NS
+from datastructures.ptz import PTZPreset, parse_get_presets_response
 
 @dataclass
 class OnvifVersion:
@@ -97,6 +98,7 @@ class MediaCapabilities:
 @dataclass
 class PTZCapabilities:
     xaddr: Optional[str] = None
+    presets: list[PTZPreset] = None
 
 @dataclass
 class DeviceIOCapabilities:

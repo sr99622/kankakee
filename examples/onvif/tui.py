@@ -16,9 +16,10 @@ from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe, get_status, continuous_move, move_stop
+        unsubscribe, get_status, continuous_move, move_stop, get_presets
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
+from datastructures.ptz import PTZPreset, parse_get_presets_response
 from functools import partial, wraps
 import traceback
 from datetime import datetime, timezone, timedelta
@@ -124,6 +125,13 @@ class ObjectBrowser(App):
                     xml = continuous_move(camera, profile_token, 0, 0, -0.5)
                     self.is_zoom_move = True
                     print(xml)
+                case 'p':
+                    self.app.debug_log.write(f"\nget presets")
+                    if xml := get_presets(camera, profile_token):
+                        print(xml)
+                        presets = parse_get_presets_response(xml)
+                        for preset in presets:
+                            self.app.debug_log.write(preset.token)
                 case 'c':
                     self.app.debug_log.write(f"\nstop move")
                     xml = move_stop(camera, profile_token, self.is_zoom_move)

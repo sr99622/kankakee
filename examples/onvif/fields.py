@@ -203,6 +203,7 @@ P         T      Z
 P         T     ZZZZZZ
 
 
+i - info
 w - up
 s - down
 a - left
@@ -210,7 +211,7 @@ d - right
 z - zoom in
 x - zoom out
 c - stop
-i - info
+p - get presets
 """
 
 field_descriptions = {

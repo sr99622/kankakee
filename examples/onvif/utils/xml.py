@@ -64,6 +64,10 @@ def int_attr(elem: ET.Element, name: str) -> Optional[bool]:
         return None
     return int(value)
 
+def float_attr(elem: Optional[ET.Element], name: str) -> Optional[float]:
+    value = attr(elem, name)
+    return float(value) if value is not None else None
+
 def get_xml_value(xml_data, xpath):
     try:
         if isinstance(xml_data, str):

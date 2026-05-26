@@ -33,6 +33,7 @@ from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInfor
         parse_system_date_and_time_response, parse_ntp_response
 from datastructures.event import ServiceCapabilities, EventProperties, SubscriptionReference, \
         parse_service_capabilities_response, parse_event_properties_response
+from datastructures.ptz import PTZPreset, parse_get_presets_response
 
 class AuthorizationError(Exception):
     pass
@@ -74,8 +75,8 @@ def safe_run(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            #logger.error(f"Error in {func.__name__}: {e}")
-            #logger.debug(traceback.format_exc())
+            print(f"Error in {func.__name__}: {e}")
+            print(traceback.format_exc())
             return None
     return wrapper
 
@@ -321,6 +322,13 @@ def get_status(camera: Camera, token: str) -> str:
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
+def get_presets(camera: Camera, token: str) -> None:
+    body = f"""<tptz:GetPresets><tptz:ProfileToken>{token}</tptz:ProfileToken></tptz:GetPresets>"""
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera.capabilities.ptz, "presets", parse_get_presets_response(xml))
+    #return xml
+
+@safe_run
 def continuous_move(camera: Camera, token: str, x: float, y: float, z: float) -> str:
     if z == 0:
         velocity = f"""
@@ -356,7 +364,7 @@ def move_stop(camera: Camera, token: str, is_zoom: bool=False) -> str:
     """
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    
+
 
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
 
@@ -621,6 +629,9 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_dns(camera)
         get_ntp(camera)
         get_profiles(camera)
+        if camera.capabilities.ptz and len(camera.profiles):
+            print("CAMERA HAS PTZ------------------------------------")
+            get_presets(camera, camera.profiles[0].token)
         get_audio_decoder_configurations(camera) # odd
         for profile in camera.profiles:
             get_stream_uri(camera, profile)
