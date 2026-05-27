@@ -352,8 +352,6 @@ def goto_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml
 
-
-
 @safe_run
 def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> str:
     preset = ""

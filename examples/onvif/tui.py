@@ -31,7 +31,7 @@ import ipaddress
 from urllib.parse import unquote_plus, urlparse
 from camera_tree import CameraTree
 import re
-
+from utils.soap import onvif_post
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
@@ -143,21 +143,44 @@ class ObjectBrowser(App):
                     zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
                     self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
 
+
+        if fqn == "capabilities.ptz.presets":
+            print("FOUND PRESET PARENT")
+            match event.key:
+                case 'n':
+                    try:
+                        xml = set_preset(camera, profile_token)
+                        print(f"SET PRESET RETURN: {xml}")
+                        token = get_xml_value(xml, ".//tptz:SetPresetResponse/tptz:PresetToken")
+                        print(f"TOKEN: {token}")
+                        #get_presets(camera, profile_token)
+                        #self.camera_tree.refresh()
+                        body = f"""<tptz:GetPresets><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresets>"""
+                        xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+                        #print(xml)
+                        presets = parse_get_presets_response(xml)
+                        for preset in presets:
+                            print(f"PRESET TOKEN: {preset.token}")
+                            if token == preset.token:
+                                print("FOUND NEW TOKEN")
+                                camera.capabilities.ptz.presets.append(preset)
+                                length = len(camera.capabilities.ptz.presets)
+                                print(f"LENGTH OF PRESETS: {length}")
+                                self.camera_tree._add_value(node, f"[{length-1}]", preset, camera)
+                                node.set_label(f"presets: [{length}]")
+                                self.camera_tree.refresh()
+                                break
+                    except Exception as ex:
+                        print(f"ADD PRESET ERROR: {ex}")
+
         if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
-                #:writeif fqn.startswith("capabilities.ptz.presets.["):
             print(f"FQN: {fqn}")
             match event.key:
                 case 'p':
-                    #self.app.debug_log.write(f"\ninformation\n")
-                    #xml = get_status(camera, profile_token)
-                    #pan_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@x")
-                    #pan_y = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@y")
-                    #zoom_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:Zoom/@x")
-                    #pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
-                    #zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
-                    #self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
-
-                    print(set_preset(camera, profile_token))
+                    if match := re.search(r"\[(\d+)\]", fqn):
+                        index = int(match.group(1))
+                        preset = camera.capabilities.ptz.presets[index]
+                        print(set_preset(camera, profile_token, preset.token))
                 case 'd':
                     preset_token = None
                     if match := re.search(r"\[(\d+)\]", fqn):
@@ -178,19 +201,10 @@ class ObjectBrowser(App):
                         parent.set_label(f"presets: [{new_count}]")
                         self.camera_tree.refresh()
                 case 'g':
-                    preset_token = None
                     if match := re.search(r"\[(\d+)\]", fqn):
                         index = int(match.group(1))
-                        print(f"INDEX: {index}")
-                        #preset = camera.capabilities.ptz.presets[index]
                         preset = camera.capabilities.ptz.presets[index]
-                        print(f"PRESET token: {preset.token}")
-                        preset_token = preset.token
-                    if not preset_token: return
-                    print(goto_preset(camera, profile_token, preset_token))
-
-
-
+                        print(goto_preset(camera, profile_token, preset.token))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:
