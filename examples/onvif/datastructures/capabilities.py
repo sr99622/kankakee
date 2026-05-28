@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import xml.etree.ElementTree as ET
 from utils.xml import text, int_text, bool_text, attr, NS
-from datastructures.ptz import PTZPreset, parse_get_presets_response
+from datastructures.ptz import PTZPreset, PresetTour, PresetTourOptions
 
 @dataclass
 class OnvifVersion:
@@ -65,7 +65,7 @@ class SecurityCapabilities:
     remote_user_handling: Optional[bool] = None
 
 @dataclass
-class DeviceCapabilities:
+class DeviceCapabilities:       
     xaddr: Optional[str] = None
     network: NetworkCapabilities = field(default_factory=NetworkCapabilities)
     system: SystemCapabilities = field(default_factory=SystemCapabilities)
@@ -98,7 +98,10 @@ class MediaCapabilities:
 @dataclass
 class PTZCapabilities:
     xaddr: Optional[str] = None
-    presets: list[PTZPreset] = None
+    presets: list[PTZPreset] = field(default_factory=list)
+    tours: list[PresetTour] = field(default_factory=list)
+    tour_options: Optional[PresetTourOptions] = field(default_factory=PresetTourOptions)
+    #dns_manual: list[str] = field(default_factory=list)
 
 @dataclass
 class DeviceIOCapabilities:

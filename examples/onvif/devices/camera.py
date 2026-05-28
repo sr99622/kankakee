@@ -33,7 +33,8 @@ from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInfor
         parse_system_date_and_time_response, parse_ntp_response
 from datastructures.event import ServiceCapabilities, EventProperties, SubscriptionReference, \
         parse_service_capabilities_response, parse_event_properties_response
-from datastructures.ptz import PTZPreset, parse_get_presets_response
+from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response, \
+        parse_get_preset_tours_response, parse_get_preset_tour_options_response
 
 class AuthorizationError(Exception):
     pass
@@ -317,16 +318,15 @@ def get_imaging_options(camera: Camera, profile: Profile) -> None:
     setattr(profile, "imaging_options", parse_imaging_options_response(xml))
 
 @safe_run
-def get_status(camera: Camera, token: str) -> str:
-    body = f"""<tptz:GetStatus><tptz:ProfileToken>{token}</tptz:ProfileToken></tptz:GetStatus>"""
+def get_status(camera: Camera, profile_token: str) -> str:
+    body = f"""<tptz:GetStatus><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetStatus>"""
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def get_presets(camera: Camera, token: str) -> None:
-    body = f"""<tptz:GetPresets><tptz:ProfileToken>{token}</tptz:ProfileToken></tptz:GetPresets>"""
+def get_presets(camera: Camera, profile_token: str) -> None:
+    body = f"""<tptz:GetPresets><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresets>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera.capabilities.ptz, "presets", parse_get_presets_response(xml))
-    #return xml
 
 @safe_run
 def remove_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
@@ -335,9 +335,8 @@ def remove_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
     <tptz:PresetToken>{preset_token}</tptz:PresetToken>
 </tptz:RemovePreset>""".strip()
-    print(body)
-    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    return xml
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
 def goto_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
@@ -346,11 +345,8 @@ def goto_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
     <tptz:PresetToken>{preset_token}</tptz:PresetToken>
 </tptz:GotoPreset>""".strip()
-    print(body)
-    
-    #body = f"""<tptz:RemovePreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken><tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
-    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    return xml
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
 def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> str:
@@ -358,12 +354,79 @@ def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> st
     if preset_token:
         preset = f"""<tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
     body = f"""<tptz:SetPreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken>{preset}</tptz:SetPreset>"""
-    #return body
-    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    return xml
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def continuous_move(camera: Camera, token: str, x: float, y: float, z: float) -> str:
+def get_preset_tours(camera:Camera, profile_token: str) -> None:
+    body = f"""<tptz:GetPresetTours><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTours>"""
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    print(f"get_preset_tours: {xml}")
+    setattr(camera.capabilities.ptz, "tours", parse_get_preset_tours_response(xml))
+
+@safe_run
+def get_preset_tour_options(camera: Camera, profile_token: str) -> str:
+    body = f"""<tptz:GetPresetTourOptions><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTourOptions>"""
+    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+    print(f"get_preset_tour_options: {xml}")
+    setattr(camera.capabilities.ptz, "tour_options", parse_get_preset_tour_options_response(xml))
+
+@safe_run
+def create_preset_tour(camera: Camera, profile_token: str) -> str:
+    body = f"""<tptz:CreatePresetTour><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:CreatePresetTour>"""
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
+def get_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
+    body = f"""
+<tptz:GetPresetTour>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+</tptz:GetPresetTour>""".strip()
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
+def modify_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) ->str:
+    body = f"""
+<tptz:ModifyPresetTour>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tt:PresetTour token="0">
+        <tt:TourSpot>
+            <tt:PresetDetail>
+                <tt:PresetToken>1</tt:PresetToken>
+            </tt:PresetDetail>
+            <tt:StayTime>PT25S</tt:StayTime>
+        </tt:TourSpot>
+        <tt:TourSpot>
+            <tt:PresetDetail>
+                <tt:PresetToken>2</tt:PresetToken>
+            </tt:PresetDetail>
+            <tt:StayTime>PT25S</tt:StayTime>
+        </tt:TourSpot>
+        <tt:TourSpot>
+            <tt:PresetDetail>
+                <tt:PresetToken>3</tt:PresetToken>
+            </tt:PresetDetail>
+            <tt:StayTime>PT25S</tt:StayTime>
+        </tt:TourSpot>
+    </tt:PresetTour>
+</tptz:ModifyPresetTour>""".strip()
+
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
+def operate_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str, operation: str) -> str:
+    body = f"""
+<tptz:OperatePresetTour>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+    <tptz:Operation>{operation}</tptz:Operation>
+</tptz:OperatePresetTour>""".strip()
+    
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
+def continuous_move(camera: Camera, profile_token: str, x: float, y: float, z: float) -> str:
     if z == 0:
         velocity = f"""
         <tt:PanTilt x="{x:.2f}" y="{y:.2f}"/>"""
@@ -372,16 +435,15 @@ def continuous_move(camera: Camera, token: str, x: float, y: float, z: float) ->
         <tt:Zoom x="{z:.2f}"/>"""
     body = f"""
 <tptz:ContinuousMove>
-    <tptz:ProfileToken>{token}</tptz:ProfileToken>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
     <tptz:Velocity>{velocity}
     </tptz:Velocity>
 </tptz:ContinuousMove>""".strip()
 
-    print(body)
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def move_stop(camera: Camera, token: str, is_zoom: bool=False) -> str:
+def move_stop(camera: Camera, profile_token: str, is_zoom: bool=False) -> str:
     if is_zoom:
         zoom_flag = "true"
         pan_tilt_flag = "false"
@@ -391,17 +453,14 @@ def move_stop(camera: Camera, token: str, is_zoom: bool=False) -> str:
 
     body = f"""
 <tptz:Stop>
-    <tptz:ProfileToken>{token}</tptz:ProfileToken>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
     <tptz:PanTilt>{pan_tilt_flag}</tptz:PanTilt>
     <tptz:Zoom>{zoom_flag}</tptz:Zoom>
-</tptz:Stop>
-    """
+</tptz:Stop>""".strip()
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
-
     ip = ipaddress.ip_address(encoder.multicast.ip_address)
     if ip.version == 4:
         address_xml = f"""
@@ -665,7 +724,13 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_profiles(camera)
         if camera.capabilities.ptz and len(camera.profiles):
             print("CAMERA HAS PTZ------------------------------------")
-            get_presets(camera, camera.profiles[0].token)
+            profile = camera.profiles[0]
+            get_presets(camera, profile.token)
+            get_preset_tours(camera, profile.token)
+            #print(modify_preset_tour(camera, profile.token, '0'))
+
+            print(get_preset_tour_options(camera, camera.profiles[0].token))
+            #print(create_preset_tour(camera, camera.profiles[0].token))
         get_audio_decoder_configurations(camera) # odd
         for profile in camera.profiles:
             get_stream_uri(camera, profile)
@@ -678,8 +743,8 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_imaging_options(camera, profile)
 
     except Exception as ex:
-        logger.error(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
-        logger.debug(traceback.format_exc())
+        print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
+        print(traceback.format_exc())
         if "notauthorized" in str(ex).lower():
             raise AuthorizationError("Not Authorized")
 

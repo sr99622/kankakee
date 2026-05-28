@@ -17,7 +17,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
-        remove_preset, goto_preset
+        remove_preset, goto_preset, operate_preset_tour
 from datastructures.event import SubscriptionReference
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
@@ -97,7 +97,25 @@ class ObjectBrowser(App):
         profile_token = camera.profiles[0].token
         print(f"PROFILE TOKEN: {profile_token}")
         fqn = node.data.get("fqn")
+        print(f"FQN: {fqn}")
         if not fqn: return
+
+        if re.fullmatch(r"capabilities\.ptz\.tours\.\[\d+\]", fqn):
+            print("PTZ TOURS")
+            match event.key:
+                case 's':
+                    if match := re.search(r"\[(\d+)\]", fqn):
+                        index = int(match.group(1))
+                        tour_token = camera.capabilities.ptz.tours[index].token
+                        print(f"s key pressed token: {tour_token}")
+                        operate_preset_tour(camera, profile_token, tour_token, 'Start')
+                case 't':
+                    if match := re.search(r"\[(\d+)\]", fqn):
+                        index = int(match.group(1))
+                        tour_token = camera.capabilities.ptz.tours[index].token
+                        print(f"t key pressed token: {tour_token}")
+                        operate_preset_tour(camera, profile_token, tour_token, 'Stop')
+
         if fqn == "capabilities.ptz.xaddr":
             print("found ptz node")
             self.app.debug_log.clear()
