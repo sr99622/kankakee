@@ -241,11 +241,13 @@ class CameraTree(Tree):
     def _add_value(self, parent: TreeNode, name: str, value: object, camera: Camera) -> None:
 
         fqn = join_fqn(self.get_fqn(parent), name)
+        print(f"_add_value fqn: {fqn}")
 
         if fqn in HIDDEN_FIELDS:
             return
 
         if is_editable_field(fqn) and value is not None:
+            print("is_editable_field")
             node = parent.add_leaf(self._make_editable_label(name, str(value)))
             node.data = {"camera": camera, "field": name, "fqn": fqn}
             return

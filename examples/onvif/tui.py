@@ -17,8 +17,10 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
-        remove_preset, goto_preset, operate_preset_tour
+        remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
+        get_preset_tours, parse_get_preset_tours_response
 from datastructures.event import SubscriptionReference
+from datastructures.ptz import TourSpot, PresetDetail
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
 from functools import partial, wraps
@@ -100,21 +102,98 @@ class ObjectBrowser(App):
         print(f"FQN: {fqn}")
         if not fqn: return
 
+        if fqn == "capabilities.ptz.tours":
+            print("PTZ TOURS PARENT NODE")
+            match event.key:
+                case 'n':
+                    xml = create_preset_tour(camera, profile_token)
+                    print(xml)
+                    preset_tour_token = get_xml_value(xml, ".//tptz:CreatePresetTourResponse/tptz:PresetTourToken")
+                    print(f"PRESET TOUR TOKEN: {preset_tour_token}")
+                    body = f"""<tptz:GetPresetTours><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTours>"""
+                    xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+                    print(f"get_preset_tours: {xml}")
+                    preset_tours = parse_get_preset_tours_response(xml)
+                    for preset_tour in preset_tours:
+                        print(f"PRESET TOKEN: {preset_tour.token}")
+                        if preset_tour_token == preset_tour.token:
+                            print("FOUND NEW TOKEN")
+                            camera.capabilities.ptz.tours.append(preset_tour)
+                            length = len(camera.capabilities.ptz.tours)
+                            print(f"LENGTH OF PRESET TOURS: {length}")
+                            self.camera_tree._add_value(node, f"[{length-1}]", preset_tour, camera)
+                            node.set_label(f"tours: [{length}]")
+                            self.camera_tree.refresh()
+                            break
+
+        if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]\.spots\.\[(\d+)\]", fqn):
+            print(f"FOUND THE SPOT NODE: {fqn}")
+            tour_index = int(match.group(1))
+            spot_index = int(match.group(2))
+            print(f"TOUR INDEX: {tour_index}, SPOT INDEX: {spot_index}")
+            match event.key:
+                case 'd':
+                    print("removing spot")
+                    parent = node.parent
+                    self.camera_tree.move_cursor(parent)
+                    node.remove()
+                    del camera.capabilities.ptz.tours[tour_index].spots[spot_index]
+                    length = len(camera.capabilities.ptz.tours[tour_index].spots)
+                    if length == 1:
+                        parent.allow_expand = False
+                    parent.set_label(f"spots: [{length}]")
+                    for i, child in enumerate(parent.children):
+                        print(f"CHILD: {child.label.plain} INDEX: {i}, fqn: {child.data["fqn"]}")
+                        child.set_label(f"[{i}]")
+                        child.data["fqn"] = f"capabilities.ptz.tours.[{tour_index}].spots.[{i}]"
+                   
+
+        if re.fullmatch(r"capabilities\.ptz\.tours\.\[\d+\]\.spots", fqn):
+            print("FOUND SPOTS")
+            preset_tour_token = None
+            index = None
+            if match := re.search(r"\[(\d+)\]", fqn):
+                index = int(match.group(1))
+                preset_tour_token = camera.capabilities.ptz.tours[index].token
+            if not preset_tour_token or not index: return
+
+            match event.key:
+                case 'n':
+                    print("creating new spot")
+                    tour_spot = TourSpot(PresetDetail("1"), "PT25S")
+                    print(f"tour_spot: {tour_spot}")
+                    camera.capabilities.ptz.tours[index].spots.append(tour_spot)
+                    length = len(camera.capabilities.ptz.tours[index].spots)
+                    #child = node.add("TEST", expand=True)
+                    #print(f"CHILD: {child}")
+                    node.allow_expand = True
+                    self.camera_tree._add_value(node, f"[{length-1}]", tour_spot, camera)
+                    node.set_label(f"spots: [{length}]")
+                    self.camera_tree.refresh()
+                    print(f"LENGTH OF LIST: {len(camera.capabilities.ptz.tours[index].spots)}")
+
+
         if re.fullmatch(r"capabilities\.ptz\.tours\.\[\d+\]", fqn):
-            print("PTZ TOURS")
+            preset_tour_token = None
+            if match := re.search(r"\[(\d+)\]", fqn):
+                index = int(match.group(1))
+                preset_tour_token = camera.capabilities.ptz.tours[index].token
+            if not preset_tour_token: return
+
             match event.key:
                 case 's':
-                    if match := re.search(r"\[(\d+)\]", fqn):
-                        index = int(match.group(1))
-                        tour_token = camera.capabilities.ptz.tours[index].token
-                        print(f"s key pressed token: {tour_token}")
-                        operate_preset_tour(camera, profile_token, tour_token, 'Start')
+                    operate_preset_tour(camera, profile_token, preset_tour_token, 'Start')
                 case 't':
-                    if match := re.search(r"\[(\d+)\]", fqn):
-                        index = int(match.group(1))
-                        tour_token = camera.capabilities.ptz.tours[index].token
-                        print(f"t key pressed token: {tour_token}")
-                        operate_preset_tour(camera, profile_token, tour_token, 'Stop')
+                    operate_preset_tour(camera, profile_token, preset_tour_token, 'Stop')
+                case 'd':
+                    print(remove_preset_tour(camera, profile_token, preset_tour_token))
+                    parent = node.parent
+                    self.camera_tree.move_cursor(parent)
+                    node.remove()
+                    new_count = len(camera.capabilities.ptz.tours)
+                    parent.set_label(f"tours: [{new_count}]")
+                    self.camera_tree.refresh()
+
 
         if fqn == "capabilities.ptz.xaddr":
             print("found ptz node")
@@ -160,7 +239,6 @@ class ObjectBrowser(App):
                     pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
                     zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
                     self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
-
 
         if fqn == "capabilities.ptz.presets":
             print("FOUND PRESET PARENT")

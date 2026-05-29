@@ -386,6 +386,16 @@ def get_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
+def remove_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
+    body = f"""
+<tptz:RemovePresetTour>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+</tptz:RemovePresetTour>""".strip()
+    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+
+@safe_run
 def modify_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) ->str:
     body = f"""
 <tptz:ModifyPresetTour>
