@@ -19,12 +19,8 @@ class DurationRange:
     max: Optional[str] = None
 
 @dataclass
-class PresetTourOptionsPresetDetail:
-    preset_tokens: list[str] = field(default_factory=list)
-
-@dataclass
 class PresetTourOptionsTourSpot:
-    preset_detail: PresetTourOptionsPresetDetail = field(default_factory=PresetTourOptionsPresetDetail)
+    preset_tokens: list[str] = field(default_factory=list)
     stay_time: DurationRange = field(default_factory=DurationRange)
 
 @dataclass
@@ -38,12 +34,8 @@ class PresetTourStatus:
     state: Optional[str] = None
 
 @dataclass
-class PresetDetail:
-    preset_token: Optional[str] = None
-
-@dataclass
 class TourSpot:
-    preset_detail: PresetDetail = field(default_factory=PresetDetail)
+    preset_token: Optional[str] = None
     stay_time: Optional[str] = None
 
 @dataclass
@@ -133,12 +125,7 @@ def parse_get_preset_tours_response(xml: str | bytes) -> list[PresetTour]:
 
         for spot_el in tour_el.xpath("./tt:TourSpot", namespaces=NS):
             spot = TourSpot(
-                preset_detail=PresetDetail(
-                    preset_token=text_or_none(
-                        spot_el,
-                        "./tt:PresetDetail/tt:PresetToken",
-                    )
-                ),
+                preset_token=text_or_none(spot_el, "./tt:PresetDetail/tt:PresetToken"),
                 stay_time=text_or_none(spot_el, "./tt:StayTime"),
             )
             spots.append(spot)
@@ -199,9 +186,7 @@ def parse_get_preset_tour_options_response(xml: str | bytes) -> PresetTourOption
             ]
 
             options.tour_spot = PresetTourOptionsTourSpot(
-                preset_detail=PresetTourOptionsPresetDetail(
-                    preset_tokens=preset_tokens
-                ),
+                preset_tokens=preset_tokens,
                 stay_time=DurationRange(
                     min=text_or_none(spot, "./tt:StayTime/tt:Min"),
                     max=text_or_none(spot, "./tt:StayTime/tt:Max"),

@@ -401,11 +401,11 @@ def modify_preset_tour(camera: Camera, profile_token: str, tour_index: int) ->st
     preset_tour = camera.capabilities.ptz.tours[tour_index]
     spots = []
     for spot in preset_tour.spots:
-        print(f"detail: {spot.preset_detail.preset_token} stay_time: {spot.stay_time}")
+        print(f"detail: {spot.preset_token} stay_time: {spot.stay_time}")
         spot_xml = f"""
         <tt:TourSpot>
             <tt:PresetDetail>
-                <tt:PresetToken>{spot.preset_detail.preset_token}</tt:PresetToken>
+                <tt:PresetToken>{spot.preset_token}</tt:PresetToken>
             </tt:PresetDetail>
             <tt:StayTime>{spot.stay_time}</tt:StayTime>
         </tt:TourSpot>"""

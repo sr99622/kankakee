@@ -20,7 +20,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
     get_preset_tours, parse_get_preset_tours_response, modify_preset_tour
 from datastructures.event import SubscriptionReference
-from datastructures.ptz import TourSpot, PresetDetail
+from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
 from functools import partial, wraps
@@ -138,7 +138,7 @@ class ObjectBrowser(App):
             preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
             match event.key:
                 case 'n':
-                    tour_spot = TourSpot(PresetDetail("1"), "PT25S")
+                    tour_spot = TourSpot("1", "PT25S")
                     camera.capabilities.ptz.tours[tour_index].spots.append(tour_spot)
                     length = len(camera.capabilities.ptz.tours[tour_index].spots)
                     node.allow_expand = True
@@ -334,6 +334,18 @@ class ObjectBrowser(App):
                 index = self.editing_indicies[-1]
                 profile = self.editing_camera.profiles[index]
                 set_video_encoder_configuration(self.editing_camera, profile.video_encoder)
+
+            elif fqn.startswith("capabilities.ptz.tours.[*].spots.[*]"):
+                print("FOUND A TOUR SPOT EDIT")
+                parent = self.editing_node.parent.parent.parent
+                print(f"PARENT: {parent.label}")
+                if data := parent.data:
+                    print(data["fqn"])
+                    if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]", data["fqn"]):
+                        tour_index = int(match.group(1))
+                        #preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
+                        parent.set_label(f"[{tour_index}] (* modified)")
+
 
             self.debug_log.write(msg)
         except Exception as ex:

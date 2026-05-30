@@ -38,7 +38,7 @@ EDITABLE_FIELDS = [
     "profiles.[*].video_encoder.rate_control.encoding_interval",
     "profiles.[*].video_encoder.rate_control.bitrate_limit",
     "capabilities.ptz.tours.[*].spots.[*].stay_time",
-    "capabilities.ptz.tours.[*].spots.[*].preset_detail.preset_token",
+    "capabilities.ptz.tours.[*].spots.[*].preset_token",
     #capabilities.ptz.tours.[1].spots.[0].preset_detail.preset_token
 ]
 
