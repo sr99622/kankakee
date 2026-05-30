@@ -18,7 +18,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
-        get_preset_tours, parse_get_preset_tours_response
+    get_preset_tours, parse_get_preset_tours_response, modify_preset_tour
 from datastructures.event import SubscriptionReference
 from datastructures.ptz import TourSpot, PresetDetail
 from server import Server, Handler, PORT
@@ -90,50 +90,35 @@ class ObjectBrowser(App):
 
     def on_key(self, event: events.Key) -> None:
         self.is_zoom_move = False
-        print(f"event: {event}")
         node = self.camera_tree.cursor_node
         if not node.data: return
         if not (camera := node.data.get("camera")): return
-        print(f"node: {node.data.get("fqn")}")
-        print(f"CAMERA NAME: {camera.name}")
         profile_token = camera.profiles[0].token
-        print(f"PROFILE TOKEN: {profile_token}")
         fqn = node.data.get("fqn")
-        print(f"FQN: {fqn}")
         if not fqn: return
 
         if fqn == "capabilities.ptz.tours":
-            print("PTZ TOURS PARENT NODE")
             match event.key:
                 case 'n':
                     xml = create_preset_tour(camera, profile_token)
-                    print(xml)
+                    #print(xml)
                     preset_tour_token = get_xml_value(xml, ".//tptz:CreatePresetTourResponse/tptz:PresetTourToken")
-                    print(f"PRESET TOUR TOKEN: {preset_tour_token}")
                     body = f"""<tptz:GetPresetTours><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTours>"""
                     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-                    print(f"get_preset_tours: {xml}")
                     preset_tours = parse_get_preset_tours_response(xml)
                     for preset_tour in preset_tours:
-                        print(f"PRESET TOKEN: {preset_tour.token}")
                         if preset_tour_token == preset_tour.token:
-                            print("FOUND NEW TOKEN")
                             camera.capabilities.ptz.tours.append(preset_tour)
                             length = len(camera.capabilities.ptz.tours)
-                            print(f"LENGTH OF PRESET TOURS: {length}")
                             self.camera_tree._add_value(node, f"[{length-1}]", preset_tour, camera)
-                            node.set_label(f"tours: [{length}]")
+                            node.set_label(f"tours [{length}]")
                             self.camera_tree.refresh()
                             break
-
         if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]\.spots\.\[(\d+)\]", fqn):
-            print(f"FOUND THE SPOT NODE: {fqn}")
             tour_index = int(match.group(1))
             spot_index = int(match.group(2))
-            print(f"TOUR INDEX: {tour_index}, SPOT INDEX: {spot_index}")
             match event.key:
                 case 'd':
-                    print("removing spot")
                     parent = node.parent
                     self.camera_tree.move_cursor(parent)
                     node.remove()
@@ -142,43 +127,29 @@ class ObjectBrowser(App):
                     if length == 1:
                         parent.allow_expand = False
                     parent.set_label(f"spots: [{length}]")
+                    grand_parent = parent.parent
+                    grand_parent.set_label(f"[{tour_index}] (* modified)")
                     for i, child in enumerate(parent.children):
-                        print(f"CHILD: {child.label.plain} INDEX: {i}, fqn: {child.data["fqn"]}")
                         child.set_label(f"[{i}]")
                         child.data["fqn"] = f"capabilities.ptz.tours.[{tour_index}].spots.[{i}]"
-                   
 
-        if re.fullmatch(r"capabilities\.ptz\.tours\.\[\d+\]\.spots", fqn):
-            print("FOUND SPOTS")
-            preset_tour_token = None
-            index = None
-            if match := re.search(r"\[(\d+)\]", fqn):
-                index = int(match.group(1))
-                preset_tour_token = camera.capabilities.ptz.tours[index].token
-            if not preset_tour_token or not index: return
-
+        if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]\.spots", fqn):
+            tour_index = int(match.group(1))
+            preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
             match event.key:
                 case 'n':
-                    print("creating new spot")
                     tour_spot = TourSpot(PresetDetail("1"), "PT25S")
-                    print(f"tour_spot: {tour_spot}")
-                    camera.capabilities.ptz.tours[index].spots.append(tour_spot)
-                    length = len(camera.capabilities.ptz.tours[index].spots)
-                    #child = node.add("TEST", expand=True)
-                    #print(f"CHILD: {child}")
+                    camera.capabilities.ptz.tours[tour_index].spots.append(tour_spot)
+                    length = len(camera.capabilities.ptz.tours[tour_index].spots)
                     node.allow_expand = True
                     self.camera_tree._add_value(node, f"[{length-1}]", tour_spot, camera)
                     node.set_label(f"spots: [{length}]")
+                    node.parent.set_label(f"[{tour_index}] (* modified)")
                     self.camera_tree.refresh()
-                    print(f"LENGTH OF LIST: {len(camera.capabilities.ptz.tours[index].spots)}")
 
-
-        if re.fullmatch(r"capabilities\.ptz\.tours\.\[\d+\]", fqn):
-            preset_tour_token = None
-            if match := re.search(r"\[(\d+)\]", fqn):
-                index = int(match.group(1))
-                preset_tour_token = camera.capabilities.ptz.tours[index].token
-            if not preset_tour_token: return
+        if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]", fqn):
+            tour_index = int(match.group(1))
+            preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
 
             match event.key:
                 case 's':
@@ -186,50 +157,57 @@ class ObjectBrowser(App):
                 case 't':
                     operate_preset_tour(camera, profile_token, preset_tour_token, 'Stop')
                 case 'd':
-                    print(remove_preset_tour(camera, profile_token, preset_tour_token))
+                    remove_preset_tour(camera, profile_token, preset_tour_token)
                     parent = node.parent
                     self.camera_tree.move_cursor(parent)
                     node.remove()
+                    del camera.capabilities.ptz.tours[tour_index]
                     new_count = len(camera.capabilities.ptz.tours)
                     parent.set_label(f"tours: [{new_count}]")
                     self.camera_tree.refresh()
+                case 'w':
+                    print("WRITING SPOT DETAILS")
+                    if node.label.plain.endswith("(* modified)"):
+                        print("SPOT HAS BEEN MODIFIED")
+                        print(modify_preset_tour(camera, profile_token, tour_index))
+
 
 
         if fqn == "capabilities.ptz.xaddr":
-            print("found ptz node")
+            #print("found ptz node")
             self.app.debug_log.clear()
             self.app.debug_log.write(ptz_screen)
             match event.key:
                 case 'w':
                     self.app.debug_log.write(f"\nmoving up...")
                     xml = continuous_move(camera, profile_token, 0, 0.5, 0)
-                    print(xml)
+                    #print(xml)
                 case 's':
                     self.app.debug_log.write(f"\nmoving down...")
                     xml = continuous_move(camera, profile_token, 0, -0.5, 0)
-                    print(xml)
+                    #print(xml)
                 case 'a':
                     self.app.debug_log.write(f"\npanning right...")
                     xml = continuous_move(camera, profile_token, 0.5, 0, 0)
-                    print(xml)
+                    #print(xml)
                 case 'd':
                     self.app.debug_log.write(f"\npanning left...")
                     xml = continuous_move(camera, profile_token, -0.5, 0, 0)
-                    print(xml)
+                    #print(xml)
                 case 'z':
                     self.app.debug_log.write(f"\nzooming in...")
                     xml = continuous_move(camera, profile_token, 0, 0, 0.5)
                     self.is_zoom_move = True 
-                    print(xml)
+                    #print(xml)
                 case 'x':
                     self.app.debug_log.write(f"\nzooming out...")
                     xml = continuous_move(camera, profile_token, 0, 0, -0.5)
                     self.is_zoom_move = True
-                    print(xml)
+                    #print(xml)
                 case 'c':
                     self.app.debug_log.write(f"\nstop move")
                     xml = move_stop(camera, profile_token, self.is_zoom_move)
-                    print(xml)
+                    #print(xml)
                 case 'i':
                     self.app.debug_log.write(f"\ninformation\n")
                     xml = get_status(camera, profile_token)
@@ -241,14 +219,14 @@ class ObjectBrowser(App):
                     self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
 
         if fqn == "capabilities.ptz.presets":
-            print("FOUND PRESET PARENT")
+            #print("FOUND PRESET PARENT")
             match event.key:
                 case 'n':
                     try:
                         xml = set_preset(camera, profile_token)
-                        print(f"SET PRESET RETURN: {xml}")
+                        #print(f"SET PRESET RETURN: {xml}")
                         token = get_xml_value(xml, ".//tptz:SetPresetResponse/tptz:PresetToken")
-                        print(f"TOKEN: {token}")
+                        #print(f"TOKEN: {token}")
                         #get_presets(camera, profile_token)
                         #self.camera_tree.refresh()
                         body = f"""<tptz:GetPresets><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresets>"""
@@ -256,12 +234,12 @@ class ObjectBrowser(App):
                         #print(xml)
                         presets = parse_get_presets_response(xml)
                         for preset in presets:
-                            print(f"PRESET TOKEN: {preset.token}")
+                            #print(f"PRESET TOKEN: {preset.token}")
                             if token == preset.token:
-                                print("FOUND NEW TOKEN")
+                                #print("FOUND NEW TOKEN")
                                 camera.capabilities.ptz.presets.append(preset)
                                 length = len(camera.capabilities.ptz.presets)
-                                print(f"LENGTH OF PRESETS: {length}")
+                                #print(f"LENGTH OF PRESETS: {length}")
                                 self.camera_tree._add_value(node, f"[{length-1}]", preset, camera)
                                 node.set_label(f"presets: [{length}]")
                                 self.camera_tree.refresh()
@@ -270,7 +248,7 @@ class ObjectBrowser(App):
                         print(f"ADD PRESET ERROR: {ex}")
 
         if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
-            print(f"FQN: {fqn}")
+            #print(f"FQN: {fqn}")
             match event.key:
                 case 'p':
                     if match := re.search(r"\[(\d+)\]", fqn):
@@ -281,10 +259,10 @@ class ObjectBrowser(App):
                     preset_token = None
                     if match := re.search(r"\[(\d+)\]", fqn):
                         index = int(match.group(1))
-                        print(f"INDEX: {index}")
+                        #print(f"INDEX: {index}")
                         #preset = camera.capabilities.ptz.presets[index]
                         preset = camera.capabilities.ptz.presets.pop(index)
-                        print(f"PRESET token: {preset.token}")
+                        #print(f"PRESET token: {preset.token}")
                         preset_token = preset.token
                     if not preset_token: return
                     print(remove_preset(camera, profile_token, preset_token))
@@ -293,14 +271,14 @@ class ObjectBrowser(App):
                         self.camera_tree.move_cursor(parent)
                         node.remove()
                         new_count = len(camera.capabilities.ptz.presets)
-                        print(f"list size for presets: {new_count}")
+                        #print(f"list size for presets: {new_count}")
                         parent.set_label(f"presets: [{new_count}]")
                         self.camera_tree.refresh()
                 case 'g':
                     if match := re.search(r"\[(\d+)\]", fqn):
                         index = int(match.group(1))
                         preset = camera.capabilities.ptz.presets[index]
-                        print(goto_preset(camera, profile_token, preset.token))
+                        #print(goto_preset(camera, profile_token, preset.token))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:

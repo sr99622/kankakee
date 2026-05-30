@@ -361,14 +361,14 @@ def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> st
 def get_preset_tours(camera:Camera, profile_token: str) -> None:
     body = f"""<tptz:GetPresetTours><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTours>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    print(f"get_preset_tours: {xml}")
+    #print(f"get_preset_tours: {xml}")
     setattr(camera.capabilities.ptz, "tours", parse_get_preset_tours_response(xml))
 
 @safe_run
 def get_preset_tour_options(camera: Camera, profile_token: str) -> str:
     body = f"""<tptz:GetPresetTourOptions><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTourOptions>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    print(f"get_preset_tour_options: {xml}")
+    #print(f"get_preset_tour_options: {xml}")
     setattr(camera.capabilities.ptz, "tour_options", parse_get_preset_tour_options_response(xml))
 
 @safe_run
@@ -396,32 +396,30 @@ def remove_preset_tour(camera: Camera, profile_token: str, preset_tour_token: st
 
 
 @safe_run
-def modify_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) ->str:
+def modify_preset_tour(camera: Camera, profile_token: str, tour_index: int) ->str:
+
+    preset_tour = camera.capabilities.ptz.tours[tour_index]
+    spots = []
+    for spot in preset_tour.spots:
+        print(f"detail: {spot.preset_detail.preset_token} stay_time: {spot.stay_time}")
+        spot_xml = f"""
+        <tt:TourSpot>
+            <tt:PresetDetail>
+                <tt:PresetToken>{spot.preset_detail.preset_token}</tt:PresetToken>
+            </tt:PresetDetail>
+            <tt:StayTime>{spot.stay_time}</tt:StayTime>
+        </tt:TourSpot>"""
+        spots.append(spot_xml)
+
     body = f"""
 <tptz:ModifyPresetTour>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tt:PresetTour token="0">
-        <tt:TourSpot>
-            <tt:PresetDetail>
-                <tt:PresetToken>1</tt:PresetToken>
-            </tt:PresetDetail>
-            <tt:StayTime>PT25S</tt:StayTime>
-        </tt:TourSpot>
-        <tt:TourSpot>
-            <tt:PresetDetail>
-                <tt:PresetToken>2</tt:PresetToken>
-            </tt:PresetDetail>
-            <tt:StayTime>PT25S</tt:StayTime>
-        </tt:TourSpot>
-        <tt:TourSpot>
-            <tt:PresetDetail>
-                <tt:PresetToken>3</tt:PresetToken>
-            </tt:PresetDetail>
-            <tt:StayTime>PT25S</tt:StayTime>
-        </tt:TourSpot>
+    <tt:PresetTour token="{preset_tour.token}">{"".join(spots)}
     </tt:PresetTour>
 </tptz:ModifyPresetTour>""".strip()
 
+    print(body)
+    #return body
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
