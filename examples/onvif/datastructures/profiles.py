@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 from .imaging import ImagingOptions, ImagingSettings, Bounds
 
@@ -163,7 +163,7 @@ class GetProfilesResponse:
     profiles: list[Profile] = field(default_factory=list)
 
 
-def parse_multicast(elem: Optional[ET.Element]) -> MulticastConfiguration:
+def parse_multicast(elem: Optional[etree._Element]) -> MulticastConfiguration:
     if elem is None:
         return MulticastConfiguration()
 
@@ -185,7 +185,8 @@ def parse_multicast(elem: Optional[ET.Element]) -> MulticastConfiguration:
     )
 
 def parse_profiles_response(xml: str) -> GetProfilesResponse:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     profile_elems = root.findall(".//trt:GetProfilesResponse/trt:Profiles", NS)
     if not profile_elems:
@@ -327,7 +328,7 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
 
     return response.profiles
 
-def parse_int_range(elem: Optional[ET.Element]) -> IntRange:
+def parse_int_range(elem: Optional[etree._Element]) -> IntRange:
     if elem is None:
         return IntRange()
 
@@ -336,7 +337,7 @@ def parse_int_range(elem: Optional[ET.Element]) -> IntRange:
         max=int_text(elem, "tt:Max"),
     )
 
-def parse_resolutions(parent: ET.Element) -> list[Resolution]:
+def parse_resolutions(parent: etree._Element) -> list[Resolution]:
     return [
         Resolution(
             width=int_text(r, "tt:Width"),
@@ -345,7 +346,7 @@ def parse_resolutions(parent: ET.Element) -> list[Resolution]:
         for r in parent.findall("tt:ResolutionsAvailable", NS)
     ]
 
-def parse_jpeg_options(elem: Optional[ET.Element]) -> Optional[JpegOptions]:
+def parse_jpeg_options(elem: Optional[etree._Element]) -> Optional[JpegOptions]:
     if elem is None:
         return None
 
@@ -357,7 +358,7 @@ def parse_jpeg_options(elem: Optional[ET.Element]) -> Optional[JpegOptions]:
         ),
     )
 
-def parse_mpeg4_options(elem: Optional[ET.Element]) -> Optional[Mpeg4Options]:
+def parse_mpeg4_options(elem: Optional[etree._Element]) -> Optional[Mpeg4Options]:
     if elem is None:
         return None
 
@@ -375,7 +376,7 @@ def parse_mpeg4_options(elem: Optional[ET.Element]) -> Optional[Mpeg4Options]:
         ],
     )
 
-def parse_h264_options(elem: Optional[ET.Element]) -> Optional[H264Options]:
+def parse_h264_options(elem: Optional[etree._Element]) -> Optional[H264Options]:
     if elem is None:
         return None
 
@@ -394,7 +395,8 @@ def parse_h264_options(elem: Optional[ET.Element]) -> Optional[H264Options]:
     )
 
 def parse_video_encoder_configuration_options_response(xml: str) -> VideoEncoderConfigurationOptions:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     options = root.find(
         ".//trt:GetVideoEncoderConfigurationOptionsResponse/trt:Options",
@@ -412,7 +414,7 @@ def parse_video_encoder_configuration_options_response(xml: str) -> VideoEncoder
         h264=parse_h264_options(options.find("tt:H264", NS)),
     )
 
-def parse_audio_encoder_configuration_option(elem: ET.Element) -> AudioEncoderConfigurationOption:
+def parse_audio_encoder_configuration_option(elem: etree._Element) -> AudioEncoderConfigurationOption:
     return AudioEncoderConfigurationOption(
         encoding=text(elem, "tt:Encoding"),
         bitrate_list=[
@@ -428,7 +430,8 @@ def parse_audio_encoder_configuration_option(elem: ET.Element) -> AudioEncoderCo
     )
 
 def parse_audio_encoder_configuration_options_response(xml: str) -> list[AudioEncoderConfigurationOption]:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     options_elem = root.find(
         ".//trt:GetAudioEncoderConfigurationOptionsResponse/trt:Options",
@@ -478,7 +481,7 @@ class AudioDecoderConfigurationOptions:
     g726: Optional[AudioDecoderCodecOptions] = None
 
 
-def parse_int_list(elem: Optional[ET.Element]) -> list[int]:
+def parse_int_list(elem: Optional[etree._Element]) -> list[int]:
     if elem is None:
         return []
 
@@ -488,7 +491,7 @@ def parse_int_list(elem: Optional[ET.Element]) -> list[int]:
         if e.text
     ]
 
-def parse_int_items(elem: Optional[ET.Element]) -> list[int]:
+def parse_int_items(elem: Optional[etree._Element]) -> list[int]:
     if elem is None:
         return []
 
@@ -499,7 +502,7 @@ def parse_int_items(elem: Optional[ET.Element]) -> list[int]:
     return values
 
 def parse_audio_decoder_codec_options(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[AudioDecoderCodecOptions]:
     if elem is None:
         return None
@@ -509,14 +512,14 @@ def parse_audio_decoder_codec_options(
         sample_rate_list=parse_int_items(elem.find("tt:SampleRateRange", NS)),
     )
 
-def parse_audio_decoder_configuration(elem: ET.Element) -> AudioDecoderConfiguration:
+def parse_audio_decoder_configuration(elem: etree._Element) -> AudioDecoderConfiguration:
     return AudioDecoderConfiguration(
         token=attr(elem, "token"),
         name=text(elem, "tt:Name"),
         use_count=int_text(elem, "tt:UseCount"),
     )
 
-def parse_audio_output_configuration(elem: ET.Element) -> AudioOutputConfiguration:
+def parse_audio_output_configuration(elem: etree._Element) -> AudioOutputConfiguration:
     return AudioOutputConfiguration(
         token=attr(elem, "token"),
         name=text(elem, "tt:Name"),
@@ -526,10 +529,9 @@ def parse_audio_output_configuration(elem: ET.Element) -> AudioOutputConfigurati
         output_level=int_text(elem, "tt:OutputLevel"),
     )
 
-def parse_audio_decoder_configurations_response(
-    xml: str,
-) -> list[AudioDecoderConfiguration]:
-    root = ET.fromstring(xml)
+def parse_audio_decoder_configurations_response(xml: str) -> list[AudioDecoderConfiguration]:
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elems = root.findall(
         ".//trt:GetAudioDecoderConfigurationsResponse/trt:Configurations",
@@ -541,10 +543,9 @@ def parse_audio_decoder_configurations_response(
         for elem in elems
     ]
 
-def parse_audio_output_configurations_response(
-    xml: str,
-) -> list[AudioOutputConfiguration]:
-    root = ET.fromstring(xml)
+def parse_audio_output_configurations_response(xml: str) -> list[AudioOutputConfiguration]:
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elems = root.findall(
         ".//trt:GetAudioOutputConfigurationsResponse/trt:Configurations",
@@ -556,10 +557,9 @@ def parse_audio_output_configurations_response(
         for elem in elems
     ]
 
-def parse_audio_decoder_configuration_options_response(
-    xml: str,
-) -> AudioDecoderConfigurationOptions:
-    root = ET.fromstring(xml)
+def parse_audio_decoder_configuration_options_response(xml: str) -> AudioDecoderConfigurationOptions:
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     response = root.find(
         ".//trt:GetAudioDecoderConfigurationOptionsResponse",

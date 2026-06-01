@@ -3,11 +3,36 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from textual.timer import Timer
 from typing import Optional
-import xml.etree.ElementTree as ET
-from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, NS
+#import xml.etree.ElementTree as ET
+from lxml import etree
+from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, text_or_none, NS
 
 WSTOP_NS = "http://docs.oasis-open.org/wsn/t-1"
 WSTOP_TOPIC_ATTR = f"{{{WSTOP_NS}}}topic"
+
+@dataclass
+class SimpleItem:
+    name: Optional[str] = None
+    value: Optional[str] = None
+
+@dataclass
+class EventMessage:
+    utc_time: Optional[str] = None
+    property_operation: Optional[str] = None
+    source: list[SimpleItem] = field(default_factory=list)
+    data: list[SimpleItem] = field(default_factory=list)
+
+@dataclass
+class NotificationMessage:
+    topic: Optional[str] = None
+    topic_dialect: Optional[str] = None
+    message: EventMessage = field(default_factory=EventMessage)
+
+@dataclass
+class PullMessagesResponse:
+    current_time: Optional[str] = None
+    termination_time: Optional[str] = None
+    notifications: list[NotificationMessage] = field(default_factory=list)
 
 @dataclass
 class ServiceCapabilities:
@@ -41,9 +66,9 @@ class EventProperties:
     producer_properties_filter_dialect: list[str] = field(default_factory=list)
     topic_expression_dialect: list[str] = field(default_factory=list)
 
-
 def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elem = root.find(
         ".//tev:GetServiceCapabilitiesResponse/tev:Capabilities",
@@ -84,10 +109,10 @@ def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
 def strip_ns(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
 
-def is_topic_node(elem: ET.Element) -> bool:
+def is_topic_node(elem: etree._Element) -> bool:
     return elem.attrib.get(WSTOP_TOPIC_ATTR) == "true"
 
-def has_topic_child(elem: ET.Element) -> bool:
+def has_topic_child(elem: etree._Element) -> bool:
     for child in list(elem):
         if strip_ns(child.tag) == "MessageDescription":
             continue
@@ -97,7 +122,7 @@ def has_topic_child(elem: ET.Element) -> bool:
             return True
     return False
 
-def collect_topic_paths(elem: ET.Element, prefix: str = "") -> list[str]:
+def collect_topic_paths(elem: etree._Element, prefix: str = "") -> list[str]:
     topics: list[str] = []
     for child in list(elem):
         name = strip_ns(child.tag)
@@ -109,13 +134,14 @@ def collect_topic_paths(elem: ET.Element, prefix: str = "") -> list[str]:
         topics.extend(collect_topic_paths(child, path))
     return topics
 
-def parse_topic_set(elem: Optional[ET.Element]) -> list[str]:
+def parse_topic_set(elem: Optional[etree._Element]) -> list[str]:
     if elem is None:
         return []
     return collect_topic_paths(elem)
 
 def parse_event_properties_response(xml: str) -> EventProperties:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
     elem = root.find(
         ".//tev:GetEventPropertiesResponse",
         NS,
@@ -152,3 +178,57 @@ def parse_event_properties_response(xml: str) -> EventProperties:
             "tev:TopicExpressionDialect",
         ),
     )
+
+def parse_simple_items(parent, xpath: str) -> list[SimpleItem]:
+    return [
+        SimpleItem(
+            name=item.get("Name"),
+            value=item.get("Value"),
+        )
+        for item in parent.xpath(xpath, namespaces=NS)
+    ]
+
+
+def parse_pull_messages_response(xml: str) -> PullMessagesResponse:
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
+
+    response_el = root.xpath(".//tev:PullMessagesResponse", namespaces=NS)
+    if not response_el:
+        return PullMessagesResponse()
+
+    response_el = response_el[0]
+
+    response = PullMessagesResponse(
+        current_time=text_or_none(response_el, "./tev:CurrentTime"),
+        termination_time=text_or_none(response_el, "./tev:TerminationTime"),
+    )
+
+    for notification_el in response_el.xpath("./wsnt:NotificationMessage", namespaces=NS):
+        topic_el = notification_el.xpath("./wsnt:Topic", namespaces=NS)
+        topic = topic_el[0].text.strip() if topic_el and topic_el[0].text else None
+        topic_dialect = topic_el[0].get("Dialect") if topic_el else None
+
+        message_el = notification_el.xpath("./wsnt:Message/tt:Message", namespaces=NS)
+
+        event_message = EventMessage()
+
+        if message_el:
+            msg = message_el[0]
+
+            event_message = EventMessage(
+                utc_time=msg.get("UtcTime"),
+                property_operation=msg.get("PropertyOperation"),
+                source=parse_simple_items(msg, "./tt:Source/tt:SimpleItem"),
+                data=parse_simple_items(msg, "./tt:Data/tt:SimpleItem"),
+            )
+
+        response.notifications.append(
+            NotificationMessage(
+                topic=topic,
+                topic_dialect=topic_dialect,
+                message=event_message,
+            )
+        )
+
+    return response

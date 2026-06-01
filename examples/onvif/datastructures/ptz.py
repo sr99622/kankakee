@@ -3,15 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from textual.timer import Timer
 from typing import Optional
-import xml.etree.ElementTree as ET
-from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, float_attr, text, NS
+#import xml.etree.ElementTree as ET
+from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, float_attr, \
+        text, text_or_none, bool_or_none, NS
 from lxml import etree
 
-NS = {
-    "s": "http://www.w3.org/2003/05/soap-envelope",
-    "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
-    "tt": "http://www.onvif.org/ver10/schema",
-}
+#NS = {
+#    "s": "http://www.w3.org/2003/05/soap-envelope",
+#    "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
+#    "tt": "http://www.onvif.org/ver10/schema",
+#}
 
 @dataclass
 class DurationRange:
@@ -68,7 +69,7 @@ class PTZPreset:
     name: Optional[str] = None
     ptz_position: Optional[PTZPosition] = None
 
-def parse_ptz_position(elem: Optional[ET.Element]) -> Optional[PTZPosition]:
+def parse_ptz_position(elem: Optional[etree._Element]) -> Optional[PTZPosition]:
     if elem is None:
         return None
 
@@ -87,7 +88,7 @@ def parse_ptz_position(elem: Optional[ET.Element]) -> Optional[PTZPosition]:
         ) if zoom is not None else None,
     )
 
-def parse_preset_element(elem: ET.Element) -> PTZPreset:
+def parse_preset_element(elem: etree._Element) -> PTZPreset:
     return PTZPreset(
         token=attr(elem, "token"),
         name=text(elem, "tt:Name"),
@@ -95,28 +96,14 @@ def parse_preset_element(elem: ET.Element) -> PTZPreset:
     )
 
 def parse_get_presets_response(xml: str) -> list[PTZPreset]:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
     preset_elems = root.findall(".//tptz:GetPresetsResponse/tptz:Preset", NS)
     return [parse_preset_element(preset) for preset in preset_elems]
 
-def text_or_none(parent, xpath: str) -> Optional[str]:
-    result = parent.xpath(xpath, namespaces=NS)
-    if not result:
-        return None
-    return result[0].text
-
-
-def bool_or_none(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    return value.strip().lower() == "true"
-
-
 def parse_get_preset_tours_response(xml: str | bytes) -> list[PresetTour]:
-    if isinstance(xml, str):
-        xml = xml.encode("utf-8")
-
-    root = etree.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     tours: list[PresetTour] = []
 
@@ -145,10 +132,8 @@ def parse_get_preset_tours_response(xml: str | bytes) -> list[PresetTour]:
     return tours
 
 def parse_get_preset_tour_options_response(xml: str | bytes) -> PresetTourOptions:
-    if isinstance(xml, str):
-        xml = xml.encode("utf-8")
-
-    root = etree.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     options_el = root.xpath(
         ".//tptz:GetPresetTourOptionsResponse/tptz:Options",

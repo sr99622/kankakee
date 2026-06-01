@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, NS
 from datastructures.ptz import PTZPreset, PresetTour, PresetTourOptions
 
@@ -134,7 +135,8 @@ class Capabilities:
     telex: Optional[TelexCapabilities] = None
 
 def parse_capabilities_response(xml: str) -> Capabilities:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     caps = root.find(".//tds:GetCapabilitiesResponse/tds:Capabilities", NS)
     if caps is None:

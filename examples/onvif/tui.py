@@ -18,8 +18,8 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
-    get_preset_tours, parse_get_preset_tours_response, modify_preset_tour
-from datastructures.event import SubscriptionReference
+        get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages
+from datastructures.event import SubscriptionReference, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
@@ -413,7 +413,7 @@ class ObjectBrowser(App):
         self.find_adapters()
         print(self.ips)
         print("object browser constructor")
-        self.loop_callback = self.set_interval(1, self.main_loop)
+        self.loop_callback = self.set_interval(5, self.main_loop)
 
     def on_unmount(self) -> None:
         if self.httpd is not None:
@@ -446,10 +446,20 @@ class ObjectBrowser(App):
             self.debug_log.write(traceback.format_exc())
 
     def main_loop(self) -> None:
-        ...
-        #print("hello from the main loop")
-        #for child in self.camera_tree.root.children:
-        #    print(child.label)
+        #...
+        print("hello from the main loop")
+        for child in self.camera_tree.root.children:
+            if child.data and (camera := child.data.get("camera")):
+                for reference in camera.subscription_references:
+                    xml = pull_messages(camera, reference.xaddr)
+                    print(f"OMG: {xml}")
+                    if not (response := parse_pull_messages_response(xml)): continue
+                    for notification in response.notifications:
+                        print(notification.topic)
+                        print(notification.message.utc_time)
+                        print(notification.message.property_operation)
+                        print(notification.message.source)
+                        print(notification.message.data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

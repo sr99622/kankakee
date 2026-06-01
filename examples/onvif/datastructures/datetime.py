@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
 
 @dataclass
@@ -40,7 +41,7 @@ class SystemDateAndTime:
     utc_date_time: Optional[DateTime] = None
     local_date_time: Optional[DateTime] = None
 
-def parse_time(elem: Optional[ET.Element]) -> Time:
+def parse_time(elem: Optional[etree._Element]) -> Time:
     if elem is None:
         return Time()
 
@@ -50,7 +51,7 @@ def parse_time(elem: Optional[ET.Element]) -> Time:
         second=int_text(elem, "tt:Second"),
     )
 
-def parse_date(elem: Optional[ET.Element]) -> Date:
+def parse_date(elem: Optional[etree._Element]) -> Date:
     if elem is None:
         return Date()
 
@@ -60,7 +61,7 @@ def parse_date(elem: Optional[ET.Element]) -> Date:
         day=int_text(elem, "tt:Day"),
     )
 
-def parse_datetime(elem: Optional[ET.Element]) -> Optional[DateTime]:
+def parse_datetime(elem: Optional[etree._Element]) -> Optional[DateTime]:
     if elem is None:
         return None
 
@@ -70,7 +71,7 @@ def parse_datetime(elem: Optional[ET.Element]) -> Optional[DateTime]:
     )
 
 
-def parse_timezone(elem: Optional[ET.Element]) -> Optional[TimeZone]:
+def parse_timezone(elem: Optional[etree._Element]) -> Optional[TimeZone]:
     if elem is None:
         return None
 
@@ -79,7 +80,8 @@ def parse_timezone(elem: Optional[ET.Element]) -> Optional[TimeZone]:
     )
 
 def parse_system_date_and_time_response(xml: str) -> SystemDateAndTime:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elem = root.find(
         ".//tds:GetSystemDateAndTimeResponse/tds:SystemDateAndTime",
@@ -106,7 +108,8 @@ def parse_ip_address(elem):
     )
 
 def parse_ntp_response(xml: str) -> NTPInformation:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     ntp_elem = root.find(".//tds:NTPInformation", NS)
     if ntp_elem is None:

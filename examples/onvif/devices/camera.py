@@ -8,7 +8,8 @@ from typing import Optional, List
 from utils.xml import get_xml_value
 from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from functools import wraps
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, NS
 from urllib.parse import unquote_plus, urlparse
 import uuid
@@ -667,6 +668,17 @@ def set_dns(camera: Camera) -> str:
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
+def create_pull_point_subscription(camera: Camera) -> str:
+    body = f"""<tev:CreatePullPointSubscription/>"""
+    #return body
+    return onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
+def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
+    body = f"""<tev:PullMessages><tev:Timeout>PT1S</tev:Timeout><tev:MessageLimit>10</tev:MessageLimit></tev:PullMessages>"""
+    return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
+
+@safe_run
 def subscribe_events(camera: Camera, event: str, ip_address: str) -> str:
     callback_url = f"http://{ip_address}:8800/onvif/events"
     initial_termination_time = "PT1M"
@@ -695,7 +707,8 @@ def unsubscribe(camera: Camera, subscription_reference_xaddr: str):
     return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elem = root.find(
         ".//tds:GetDeviceInformationResponse",

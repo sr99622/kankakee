@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, NS
 
 @dataclass
@@ -71,7 +72,7 @@ class NetworkInterface:
     ipv4: Optional[IPv4NetworkInterface] = None
     ipv6: Optional[IPv6NetworkInterface] = None
 
-def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[str]:
+def parse_prefixed_ipv4(elem: Optional[etree._Element]) -> Optional[str]:
     if elem is None:
         return None
 
@@ -79,7 +80,7 @@ def parse_prefixed_ipv4(elem: Optional[ET.Element]) -> Optional[str]:
     prefix_length=int_text(elem, "tt:PrefixLength")
     return f"{address} / {prefix_length}"
 
-def parse_prefixed_ipv6(elem: Optional[ET.Element]) -> Optional[PrefixedIPv6Address]:
+def parse_prefixed_ipv6(elem: Optional[etree._Element]) -> Optional[PrefixedIPv6Address]:
     if elem is None:
         return None
 
@@ -88,7 +89,7 @@ def parse_prefixed_ipv6(elem: Optional[ET.Element]) -> Optional[PrefixedIPv6Addr
         prefix_length=int_text(elem, "tt:PrefixLength"),
     )
 
-def parse_connection_setting(elem: Optional[ET.Element]) -> NetworkInterfaceConnectionSetting:
+def parse_connection_setting(elem: Optional[etree._Element]) -> NetworkInterfaceConnectionSetting:
     if elem is None:
         return NetworkInterfaceConnectionSetting()
 
@@ -98,7 +99,7 @@ def parse_connection_setting(elem: Optional[ET.Element]) -> NetworkInterfaceConn
         duplex=text(elem, "tt:Duplex"),
     )
 
-def parse_network_interface_link(elem: Optional[ET.Element]) -> NetworkInterfaceLink:
+def parse_network_interface_link(elem: Optional[etree._Element]) -> NetworkInterfaceLink:
     if elem is None:
         return NetworkInterfaceLink()
 
@@ -112,7 +113,7 @@ def parse_network_interface_link(elem: Optional[ET.Element]) -> NetworkInterface
         interface_type=int_text(elem, "tt:InterfaceType"),
     )
 
-def parse_ipv4_network_interface(elem: Optional[ET.Element]) -> Optional[IPv4NetworkInterface]:
+def parse_ipv4_network_interface(elem: Optional[etree._Element]) -> Optional[IPv4NetworkInterface]:
     if elem is None:
         return None
 
@@ -131,7 +132,7 @@ def parse_ipv4_network_interface(elem: Optional[ET.Element]) -> Optional[IPv4Net
         dhcp=bool_text(elem, "tt:Config/tt:DHCP"),
     )
 
-def parse_ipv6_network_interface(elem: Optional[ET.Element]) -> Optional[IPv6NetworkInterface]:
+def parse_ipv6_network_interface(elem: Optional[etree._Element]) -> Optional[IPv6NetworkInterface]:
     if elem is None:
         return None
 
@@ -174,7 +175,8 @@ def parse_ipv6_network_interface(elem: Optional[ET.Element]) -> Optional[IPv6Net
     )
 
 def parse_network_interfaces_response(xml: str) -> list[NetworkInterface]:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     interface_elems = root.findall(
         ".//tds:GetNetworkInterfacesResponse/tds:NetworkInterfaces",
@@ -205,7 +207,7 @@ def parse_network_interfaces_response(xml: str) -> list[NetworkInterface]:
 
     return interfaces
 
-def parse_ip_address(elem: Optional[ET.Element]) -> Optional[str]:
+def parse_ip_address(elem: Optional[etree._Element]) -> Optional[str]:
     if elem is None:
         return None
 
@@ -215,7 +217,8 @@ def parse_ip_address(elem: Optional[ET.Element]) -> Optional[str]:
     )
 
 def parse_dns_response(xml: str) -> DNSInformation:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     dns_elem = root.find(
         ".//tds:GetDNSResponse/tds:DNSInformation",
@@ -250,7 +253,8 @@ def parse_dns_response(xml: str) -> DNSInformation:
     )
 
 def parse_hostname_response(xml: str) -> HostnameInformation:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     elem = root.find(
         ".//tds:GetHostnameResponse/tds:HostnameInformation",

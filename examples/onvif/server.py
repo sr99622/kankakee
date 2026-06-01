@@ -1,6 +1,5 @@
-import xml.etree.ElementTree as ET
 from utils.xml import text, NS
-
+from lxml import etree
 import http.server
 import socketserver
 import os
@@ -29,7 +28,7 @@ def strip_topic_prefix(topic: str) -> str:
         return topic.split(":", 1)[1]
     return topic
 
-def simple_items(elem: ET.Element | None) -> dict[str, str]:
+def simple_items(elem: etree._Element | None) -> dict[str, str]:
     if elem is None:
         return {}
 

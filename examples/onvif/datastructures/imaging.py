@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, float_text, NS
 
 @dataclass
@@ -118,7 +119,7 @@ class WhiteBalanceOptions:
     yr_gain: Optional[FloatRange] = None
     yb_gain: Optional[FloatRange] = None
 
-def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
+def parse_bounds(elem: Optional[etree._Element]) -> Optional[Bounds]:
     if elem is None:
         return None
 
@@ -130,7 +131,7 @@ def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
     )
 
 def parse_backlight_compensation(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[BacklightCompensation]:
     if elem is None:
         return None
@@ -140,7 +141,7 @@ def parse_backlight_compensation(
         level=float_text(elem, "tt:Level"),
     )
 
-def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
+def parse_exposure(elem: Optional[etree._Element]) -> Optional[Exposure]:
     if elem is None:
         return None
 
@@ -159,7 +160,7 @@ def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
         iris=float_text(elem, "tt:Iris"),
     )
 
-def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
+def parse_focus(elem: Optional[etree._Element]) -> Optional[Focus]:
     if elem is None:
         return None
 
@@ -171,7 +172,7 @@ def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
     )
 
 def parse_wide_dynamic_range(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[WideDynamicRange]:
     if elem is None:
         return None
@@ -181,7 +182,7 @@ def parse_wide_dynamic_range(
         level=float_text(elem, "tt:Level"),
     )
 
-def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
+def parse_white_balance(elem: Optional[etree._Element]) -> Optional[WhiteBalance]:
     if elem is None:
         return None
 
@@ -191,7 +192,7 @@ def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
         cb_gain=float_text(elem, "tt:CbGain"),
     )
 
-def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
+def parse_bounds(elem: Optional[etree._Element]) -> Optional[Bounds]:
     if elem is None:
         return None
 
@@ -203,7 +204,7 @@ def parse_bounds(elem: Optional[ET.Element]) -> Optional[Bounds]:
     )
 
 def parse_backlight_compensation(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[BacklightCompensation]:
     if elem is None:
         return None
@@ -213,7 +214,7 @@ def parse_backlight_compensation(
         level=float_text(elem, "tt:Level"),
     )
 
-def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
+def parse_exposure(elem: Optional[etree._Element]) -> Optional[Exposure]:
     if elem is None:
         return None
 
@@ -232,7 +233,7 @@ def parse_exposure(elem: Optional[ET.Element]) -> Optional[Exposure]:
         iris=float_text(elem, "tt:Iris"),
     )
 
-def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
+def parse_focus(elem: Optional[etree._Element]) -> Optional[Focus]:
     if elem is None:
         return None
 
@@ -244,7 +245,7 @@ def parse_focus(elem: Optional[ET.Element]) -> Optional[Focus]:
     )
 
 def parse_wide_dynamic_range(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[WideDynamicRange]:
     if elem is None:
         return None
@@ -254,7 +255,7 @@ def parse_wide_dynamic_range(
         level=float_text(elem, "tt:Level"),
     )
 
-def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
+def parse_white_balance(elem: Optional[etree._Element]) -> Optional[WhiteBalance]:
     if elem is None:
         return None
 
@@ -265,7 +266,8 @@ def parse_white_balance(elem: Optional[ET.Element]) -> Optional[WhiteBalance]:
     )
 
 def parse_imaging_settings_response(xml: str) -> ImagingSettings:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     settings = root.find(
         ".//timg:GetImagingSettingsResponse/timg:ImagingSettings",
@@ -293,7 +295,7 @@ def parse_imaging_settings_response(xml: str) -> ImagingSettings:
         white_balance=parse_white_balance(settings.find("tt:WhiteBalance", NS)),
     )
 
-def parse_float_range(elem: Optional[ET.Element]) -> Optional[FloatRange]:
+def parse_float_range(elem: Optional[etree._Element]) -> Optional[FloatRange]:
     if elem is None:
         return None
 
@@ -302,7 +304,7 @@ def parse_float_range(elem: Optional[ET.Element]) -> Optional[FloatRange]:
         max=float_text(elem, "tt:Max"),
     )
 
-def text_list(elem: ET.Element, path: str) -> list[str]:
+def text_list(elem: etree._Element, path: str) -> list[str]:
     return [
         e.text.strip()
         for e in elem.findall(path, NS)
@@ -310,7 +312,7 @@ def text_list(elem: ET.Element, path: str) -> list[str]:
     ]
 
 def parse_backlight_compensation_options(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[BacklightCompensationOptions]:
     if elem is None:
         return None
@@ -320,7 +322,7 @@ def parse_backlight_compensation_options(
         level=parse_float_range(elem.find("tt:Level", NS)),
     )
 
-def parse_exposure_options(elem: Optional[ET.Element]) -> Optional[ExposureOptions]:
+def parse_exposure_options(elem: Optional[etree._Element]) -> Optional[ExposureOptions]:
     if elem is None:
         return None
 
@@ -338,7 +340,7 @@ def parse_exposure_options(elem: Optional[ET.Element]) -> Optional[ExposureOptio
         iris=parse_float_range(elem.find("tt:Iris", NS)),
     )
 
-def parse_focus_options(elem: Optional[ET.Element]) -> Optional[FocusOptions]:
+def parse_focus_options(elem: Optional[etree._Element]) -> Optional[FocusOptions]:
     if elem is None:
         return None
 
@@ -350,7 +352,7 @@ def parse_focus_options(elem: Optional[ET.Element]) -> Optional[FocusOptions]:
     )
 
 def parse_wide_dynamic_range_options(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[WideDynamicRangeOptions]:
     if elem is None:
         return None
@@ -361,7 +363,7 @@ def parse_wide_dynamic_range_options(
     )
 
 def parse_white_balance_options(
-    elem: Optional[ET.Element],
+    elem: Optional[etree._Element],
 ) -> Optional[WhiteBalanceOptions]:
     if elem is None:
         return None
@@ -373,7 +375,8 @@ def parse_white_balance_options(
     )
     
 def parse_imaging_options_response(xml: str) -> ImagingOptions:
-    root = ET.fromstring(xml)
+    if not xml: return
+    root = etree.fromstring(xml.encode('utf-8'))
 
     options = root.find(
         ".//timg:GetOptionsResponse/timg:ImagingOptions",
