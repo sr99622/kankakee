@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 from lxml import etree
-from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
+from utils.xml import text, int_text, bool_text, attr, float_text, NS
 from .imaging import ImagingOptions, ImagingSettings, Bounds
 
 @dataclass
@@ -197,7 +197,7 @@ def parse_profiles_response(xml: str) -> GetProfilesResponse:
     for p in profile_elems:
         profile = Profile(
             token=attr(p, "token"),
-            fixed=bool_attr(p, "fixed"),
+            fixed=bool_text(p, "fixed"),
             name=text(p, "tt:Name"),
         )
 

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
-
 from lxml import etree
-
 
 NS = {
     "s": "http://www.w3.org/2003/05/soap-envelope",
@@ -25,143 +23,65 @@ NS = {
     "tns1": "http://www.onvif.org/ver10/topics",
 }
 
-
 Element = etree._Element
 
-
-def parse_xml(xml_data: str | bytes) -> Optional[Element]:
-    """Parse XML using lxml.
-
-    Returns None on parse failure.
-    Leading/trailing whitespace is stripped so XML declarations work
-    even when the XML string is triple-quoted with a leading newline.
-    """
-    try:
-        if isinstance(xml_data, str):
-            xml_data = xml_data.strip().encode("utf-8")
-        else:
-            xml_data = xml_data.strip()
-
-        return etree.fromstring(xml_data)
-    except (etree.XMLSyntaxError, ValueError):
-        return None
-
-
-def xpath_one(elem: Element, path: str) -> Optional[object]:
-    try:
-        result = elem.xpath(path, namespaces=NS)
-    except etree.XPathError:
-        return None
-
-    return result[0] if result else None
-
-
-def xpath_all(elem: Element, path: str) -> list[object]:
-    try:
-        return elem.xpath(path, namespaces=NS)
-    except etree.XPathError:
-        return []
-
+def attr(elem: Element, name: str) -> Optional[str]:
+    if elem is None: return
+    return elem.attrib.get(name)
 
 def text(elem: Element, path: str) -> Optional[str]:
-    found = xpath_one(elem, path)
-
-    if found is None:
-        return None
-
-    if isinstance(found, etree._Element):
-        value = "".join(found.itertext()).strip()
-        return value if value else None
-
-    value = str(found).strip()
-    return value if value else None
-
-
-def bool_text(elem: Element, path: str) -> Optional[bool]:
-    value = text(elem, path)
-    if value is None:
-        return None
-
-    return value.strip().lower() in ("true", "1", "yes", "on")
-
+    try:
+        if not (result := elem.xpath(path, namespaces=NS)): return        
+        found = result[0]
+        if isinstance(found, etree._Element):
+            return "".join(found.itertext()).strip()
+        return str(found).strip()
+    except Exception as ex:
+        print(f"text parsing exception: {ex}")
 
 def text_list(elem: Element, path: str) -> list[str]:
     values: list[str] = []
-
-    for item in xpath_all(elem, path):
-        if isinstance(item, etree._Element):
-            value = "".join(item.itertext()).strip()
-        else:
-            value = str(item).strip()
-
-        if value:
-            values.append(value)
-
+    try:
+        items = elem.xpath(path, namespaces=NS)
+        for item in items:
+            if isinstance(item, etree._Element):
+                value = "".join(item.itertext()).strip()
+            else:
+                value = str(item).strip()
+            if value:
+                values.append(value)
+    except Exception as ex:
+        print(f"text_list exception: {ex}")
     return values
 
+def bool_text(elem: Element, path: str) -> Optional[bool]:
+    if not (value := text(elem, path)): return
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
-def text_or_none(parent: Element, xpath: str) -> Optional[str]:
-    return text(parent, xpath)
-
-
-def bool_or_none(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-
-    return value.strip().lower() == "true"
-
+def bool_attr(elem: Element, name: str) -> Optional[bool]:
+    if not (value := attr(elem, name)): return
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
 def int_text(elem: Element, path: str) -> Optional[int]:
-    value = text(elem, path)
-    return int(value) if value is not None else None
-
-
-def float_text(elem: Element, path: str) -> Optional[float]:
-    value = text(elem, path)
-    return float(value) if value is not None else None
-
-
-def attr(elem: Optional[Element], name: str) -> Optional[str]:
-    if elem is None:
-        return None
-
-    return elem.attrib.get(name)
-
-
-def bool_attr(elem: Optional[Element], name: str) -> Optional[bool]:
-    value = attr(elem, name)
-    if value is None:
-        return None
-
-    return value.lower() == "true"
-
-
-def int_attr(elem: Optional[Element], name: str) -> Optional[int]:
-    value = attr(elem, name)
-    if value is None:
-        return None
-
+    if not (value := text(elem, path)): return
     return int(value)
 
+def int_attr(elem: Element, name: str) -> Optional[int]:
+    if not (value := attr(elem, name)): return
+    return int(value)
 
-def float_attr(elem: Optional[Element], name: str) -> Optional[float]:
-    value = attr(elem, name)
-    if value is None:
-        return None
-
+def float_text(elem: Element, path: str) -> Optional[float]:
+    if not (value := text(elem, path)): return
     return float(value)
 
-
-def get_xml_value(xml_data: str | bytes, xpath: str) -> str:
-    doc = parse_xml(xml_data)
-    if doc is None:
+def get_xml_value(xml_data: str, xpath: str) -> str:
+    if not xml_data: return ""
+    try:
+        if (doc := etree.fromstring(xml_data.encode('utf-8'))) is None: return ""
+        if (found := doc.xpath(xpath, namespaces=NS)[0]) is None: return ""
+        if isinstance(found, etree._Element):
+            return "".join(found.itertext()).strip()
+        return str(found).strip()
+    except Exception as ex:
+        print(f'get_xml_value exception: {ex}')
         return ""
-
-    found = xpath_one(doc, xpath)
-    if found is None:
-        return ""
-
-    if isinstance(found, etree._Element):
-        return "".join(found.itertext()).strip()
-
-    return str(found).strip()

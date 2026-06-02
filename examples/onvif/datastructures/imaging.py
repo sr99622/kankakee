@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-#import xml.etree.ElementTree as ET
 from lxml import etree
-from utils.xml import text, int_text, bool_text, attr, float_text, NS
+from utils.xml import text, int_text, attr, float_text, text_list, NS
 
 @dataclass
 class Bounds:
@@ -303,13 +302,6 @@ def parse_float_range(elem: Optional[etree._Element]) -> Optional[FloatRange]:
         min=float_text(elem, "tt:Min"),
         max=float_text(elem, "tt:Max"),
     )
-
-def text_list(elem: etree._Element, path: str) -> list[str]:
-    return [
-        e.text.strip()
-        for e in elem.findall(path, NS)
-        if e.text
-    ]
 
 def parse_backlight_compensation_options(
     elem: Optional[etree._Element],

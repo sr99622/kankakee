@@ -8,7 +8,6 @@ from typing import Optional, List
 from utils.xml import get_xml_value
 from utils.soap import onvif_post, parse_soap_fault, POST_TIMEOUT
 from functools import wraps
-#import xml.etree.ElementTree as ET
 from lxml import etree
 from utils.xml import text, NS
 from urllib.parse import unquote_plus, urlparse

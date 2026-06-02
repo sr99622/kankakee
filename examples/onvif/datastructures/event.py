@@ -3,9 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from textual.timer import Timer
 from typing import Optional
-#import xml.etree.ElementTree as ET
 from lxml import etree
-from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, text_or_none, NS
+from utils.xml import int_attr, attr, text_list, bool_attr, text, NS
 
 WSTOP_NS = "http://docs.oasis-open.org/wsn/t-1"
 WSTOP_TOPIC_ATTR = f"{{{WSTOP_NS}}}topic"
@@ -165,7 +164,7 @@ def parse_event_properties_response(xml: str) -> EventProperties:
             elem,
             "tev:MessageContentSchemaLocation",
         ),
-        fixed_topic_set=bool_text(
+        fixed_topic_set=bool_attr(
             elem,
             "tev:FixedTopicSet",
         ),
@@ -200,8 +199,8 @@ def parse_pull_messages_response(xml: str) -> PullMessagesResponse:
     response_el = response_el[0]
 
     response = PullMessagesResponse(
-        current_time=text_or_none(response_el, "./tev:CurrentTime"),
-        termination_time=text_or_none(response_el, "./tev:TerminationTime"),
+        current_time=text(response_el, "./tev:CurrentTime"),
+        termination_time=text(response_el, "./tev:TerminationTime"),
     )
 
     for notification_el in response_el.xpath("./wsnt:NotificationMessage", namespaces=NS):

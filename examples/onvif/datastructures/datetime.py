@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
-#import xml.etree.ElementTree as ET
 from lxml import etree
-from utils.xml import text, int_text, bool_text, attr, bool_attr, float_text, NS
+from utils.xml import text, int_text, bool_text, attr, NS
 
 @dataclass
 class NTPInformation:

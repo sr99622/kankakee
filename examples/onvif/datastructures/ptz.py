@@ -3,16 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from textual.timer import Timer
 from typing import Optional
-#import xml.etree.ElementTree as ET
-from utils.xml import int_attr, bool_attr, attr, text_list, bool_text, float_attr, \
-        text, text_or_none, bool_or_none, NS
+from utils.xml import attr, bool_text, float_text, text, NS
 from lxml import etree
-
-#NS = {
-#    "s": "http://www.w3.org/2003/05/soap-envelope",
-#    "tptz": "http://www.onvif.org/ver20/ptz/wsdl",
-#    "tt": "http://www.onvif.org/ver10/schema",
-#}
 
 @dataclass
 class DurationRange:
@@ -78,12 +70,12 @@ def parse_ptz_position(elem: Optional[etree._Element]) -> Optional[PTZPosition]:
 
     return PTZPosition(
         pan_tilt=Vector2D(
-            x=float_attr(pan_tilt, "x"),
-            y=float_attr(pan_tilt, "y"),
+            x=float_text(pan_tilt, "x"),
+            y=float_text(pan_tilt, "y"),
             space=attr(pan_tilt, "space"),
         ) if pan_tilt is not None else None,
         zoom=Vector1D(
-            x=float_attr(zoom, "x"),
+            x=float_text(zoom, "x"),
             space=attr(zoom, "space"),
         ) if zoom is not None else None,
     )
@@ -112,18 +104,18 @@ def parse_get_preset_tours_response(xml: str | bytes) -> list[PresetTour]:
 
         for spot_el in tour_el.xpath("./tt:TourSpot", namespaces=NS):
             spot = TourSpot(
-                preset_token=text_or_none(spot_el, "./tt:PresetDetail/tt:PresetToken"),
-                stay_time=text_or_none(spot_el, "./tt:StayTime"),
+                preset_token=text(spot_el, "./tt:PresetDetail/tt:PresetToken"),
+                stay_time=text(spot_el, "./tt:StayTime"),
             )
             spots.append(spot)
 
         tour = PresetTour(
             token=tour_el.get("token"),
-            name=text_or_none(tour_el, "./tt:Name"),
+            name=text(tour_el, "./tt:Name"),
             status=PresetTourStatus(
-                state=text_or_none(tour_el, "./tt:Status/tt:State")
+                state=text(tour_el, "./tt:Status/tt:State")
             ),
-            auto_start=bool_or_none(text_or_none(tour_el, "./tt:AutoStart")),
+            auto_start=bool_text(tour_el, "./tt:AutoStart"),
             spots=spots,
         )
 
@@ -148,10 +140,8 @@ def parse_get_preset_tour_options_response(xml: str | bytes) -> PresetTourOption
     options = PresetTourOptions()
 
     if options_el:
-        options.auto_start = bool_or_none(
-            text_or_none(options_el[0], "./tt:AutoStart")
-        )
-        options.starting_condition = text_or_none(
+        options.auto_start = bool_text(options_el[0], "./tt:AutoStart")
+        options.starting_condition = text(
             options_el[0], "./tt:StartingCondition"
         )
 
@@ -173,8 +163,8 @@ def parse_get_preset_tour_options_response(xml: str | bytes) -> PresetTourOption
             options.tour_spot = PresetTourOptionsTourSpot(
                 preset_tokens=preset_tokens,
                 stay_time=DurationRange(
-                    min=text_or_none(spot, "./tt:StayTime/tt:Min"),
-                    max=text_or_none(spot, "./tt:StayTime/tt:Max"),
+                    min=text(spot, "./tt:StayTime/tt:Min"),
+                    max=text(spot, "./tt:StayTime/tt:Max"),
                 ),
             )
 
