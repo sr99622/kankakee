@@ -6,6 +6,7 @@ from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, NS
 from datastructures.ptz import PTZPreset, PresetTour, PresetTourOptions
 from datastructures.event import EventServiceCapabilities, EventProperties
+from datastructures.device_io import DeviceIOServiceCapabilities
 
 @dataclass
 class OnvifVersion:
@@ -113,6 +114,8 @@ class DeviceIOCapabilities:
     audio_sources: Optional[int] = None
     audio_outputs: Optional[int] = None
     relay_outputs: Optional[int] = None
+    service_capabilities: DeviceIOServiceCapabilities = field(default_factory=DeviceIOServiceCapabilities) 
+    relay_outputs: list[RelayOutput] = field(default_factory=list)
 
 @dataclass
 class TelexCapabilities:

@@ -35,6 +35,8 @@ from datastructures.event import EventServiceCapabilities, EventProperties, Subs
         parse_event_service_capabilities_response, parse_event_properties_response
 from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response, \
         parse_get_preset_tours_response, parse_get_preset_tour_options_response
+from datastructures.device_io import parse_deviceio_service_capabilities_response, \
+        parse_get_relay_outputs_response, RelayOutput, parse_get_relay_output_options_response
 
 class AuthorizationError(Exception):
     pass
@@ -302,6 +304,26 @@ def get_event_properties(camera: Camera) -> None:
     body = f"""<tev:GetEventProperties/>"""
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera.capabilities.events, "event_properties", parse_event_properties_response(xml))
+
+@safe_run
+def get_device_io_service_capabilities(camera: Camera) -> None:
+    body = f"""<tmd:GetServiceCapabilities/>"""
+    xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
+    setattr(camera.capabilities.device_io, "service_capabilities", parse_deviceio_service_capabilities_response(xml))
+
+@safe_run
+def get_relay_outputs(camera: Camera) -> None:
+    body = f"""<tmd:GetRelayOutputs/>"""
+    xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
+    #print(xml)
+    setattr(camera.capabilities.device_io, "relay_outputs", parse_get_relay_outputs_response(xml))
+
+@safe_run
+def get_relay_output_options(camera: Camera, relay_output: RelayOutput) -> None:
+    body = f"""<tmd:GetRelayOutputOptions><tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken></tmd:GetRelayOutputOptions>"""
+    xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
+    print(xml)
+    setattr(relay_output, "options", parse_get_relay_output_options_response(xml))
 
 @safe_run
 def get_imaging_settings(camera: Camera, profile: Profile) -> None:
@@ -733,7 +755,6 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_device_information(camera)
         get_event_service_capabilities(camera)
         get_event_properties(camera)
-
         get_network_interfaces(camera)
         get_network_default_gateway(camera)
         get_hostname(camera)
@@ -741,14 +762,10 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_ntp(camera)
         get_profiles(camera)
         if camera.capabilities.ptz and len(camera.profiles):
-            print("CAMERA HAS PTZ------------------------------------")
             profile = camera.profiles[0]
             get_presets(camera, profile.token)
             get_preset_tours(camera, profile.token)
-            #print(modify_preset_tour(camera, profile.token, '0'))
-
             print(get_preset_tour_options(camera, camera.profiles[0].token))
-            #print(create_preset_tour(camera, camera.profiles[0].token))
         get_audio_decoder_configurations(camera) # odd
         for profile in camera.profiles:
             get_stream_uri(camera, profile)
@@ -759,6 +776,13 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
             if camera.capabilities.imaging:
                 get_imaging_settings(camera, profile)
                 get_imaging_options(camera, profile)
+        if camera.capabilities.device_io:
+            get_device_io_service_capabilities(camera)
+            print(f"relay outputs: {camera.capabilities.device_io.relay_outputs}")
+            if camera.capabilities.device_io.relay_outputs:
+                get_relay_outputs(camera)
+                for output in camera.capabilities.device_io.relay_outputs:
+                    get_relay_output_options(camera, output)
 
     except Exception as ex:
         print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")

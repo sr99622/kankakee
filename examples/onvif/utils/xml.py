@@ -12,6 +12,7 @@ NS = {
     "wsa5": "http://www.w3.org/2005/08/addressing",
     "wsnt": "http://docs.oasis-open.org/wsn/b-2",
     "d": "http://schemas.xmlsoap.org/ws/2005/04/discovery",
+    "tmd": "http://www.onvif.org/ver10/deviceIO/wsdl",
     "ter": "http://www.onvif.org/ver10/error",
     "a": "http://schemas.xmlsoap.org/ws/2004/08/addressing",
     "wsse": "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
