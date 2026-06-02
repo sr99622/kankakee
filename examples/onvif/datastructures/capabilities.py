@@ -5,6 +5,7 @@ from typing import Optional
 from lxml import etree
 from utils.xml import text, int_text, bool_text, attr, NS
 from datastructures.ptz import PTZPreset, PresetTour, PresetTourOptions
+from datastructures.event import EventServiceCapabilities, EventProperties
 
 @dataclass
 class OnvifVersion:
@@ -78,6 +79,8 @@ class EventsCapabilities:
     ws_subscription_policy_support: Optional[bool] = None
     ws_pull_point_support: Optional[bool] = None
     ws_pausable_subscription_manager_interface_support: Optional[bool] = None
+    service_capabilities: EventServiceCapabilities = field(default_factory=EventServiceCapabilities)
+    event_properties: EventProperties = field(default_factory=EventProperties)
 
 @dataclass
 class ImagingCapabilities:
@@ -101,7 +104,6 @@ class PTZCapabilities:
     presets: list[PTZPreset] = field(default_factory=list)
     tours: list[PresetTour] = field(default_factory=list)
     tour_options: Optional[PresetTourOptions] = field(default_factory=PresetTourOptions)
-    #dns_manual: list[str] = field(default_factory=list)
 
 @dataclass
 class DeviceIOCapabilities:

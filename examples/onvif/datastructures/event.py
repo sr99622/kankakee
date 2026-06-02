@@ -34,7 +34,7 @@ class PullMessagesResponse:
     notifications: list[NotificationMessage] = field(default_factory=list)
 
 @dataclass
-class ServiceCapabilities:
+class EventServiceCapabilities:
     ws_subscription_policy_support: Optional[bool] = None
     ws_pausable_subscription_manager_interface_support: Optional[bool] = None
     max_notification_producers: Optional[int] = None
@@ -65,7 +65,7 @@ class EventProperties:
     producer_properties_filter_dialect: list[str] = field(default_factory=list)
     topic_expression_dialect: list[str] = field(default_factory=list)
 
-def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
+def parse_event_service_capabilities_response(xml: str) -> EventServiceCapabilities:
     if not xml: return
     root = etree.fromstring(xml.encode('utf-8'))
 
@@ -78,7 +78,7 @@ def parse_service_capabilities_response(xml: str) -> ServiceCapabilities:
             "Could not find tev:GetServiceCapabilitiesResponse/tev:Capabilities"
         )
 
-    return ServiceCapabilities(
+    return EventServiceCapabilities(
         ws_subscription_policy_support=bool_attr(
             elem, "WSSubscriptionPolicySupport"
         ),

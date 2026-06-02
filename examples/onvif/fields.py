@@ -46,13 +46,14 @@ UNUSED_FIELDS = [
     "audio_decoder", 
     "audio_decoder_options", 
     "audio_output",
-    "service_capabilities.persistent_notification_storage",
-    "service_capabilities.event_broker_protocols",
-    "service_capabilities.max_event_brokers",
-    "service_capabilities.metadata_over_mqtt",
-    "event_properties.fixed_topic_set",
-    "event_properties.producer_properties_filter_dialect",
-    "event_properties.topic_expression_dialect",
+    "capabilities.events.service_capabilities.persistent_notification_storage",
+    "capabilities.events.service_capabilities.event_broker_protocols",
+    "capabilities.events.service_capabilities.max_event_brokers",
+    "capabilities.events.service_capabilities.metadata_over_mqtt",
+    "capabilities.events.event_properties.fixed_topic_set",
+    "capabilities.events.event_properties.producer_properties_filter_dialect",
+    "capabilities.events.event_properties.topic_expression_dialect",
+    "capabilities.telex",
 ]
 
 HIDDEN_FIELDS = [

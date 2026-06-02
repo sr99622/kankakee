@@ -31,8 +31,8 @@ from datastructures.imaging import ImagingSettings, ImagingOptions, \
         parse_imaging_settings_response, parse_imaging_options_response
 from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
-from datastructures.event import ServiceCapabilities, EventProperties, SubscriptionReference, \
-        parse_service_capabilities_response, parse_event_properties_response
+from datastructures.event import EventServiceCapabilities, EventProperties, SubscriptionReference, \
+        parse_event_service_capabilities_response, parse_event_properties_response
 from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response, \
         parse_get_preset_tours_response, parse_get_preset_tour_options_response
 
@@ -51,23 +51,21 @@ class DeviceInformation:
 class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
-    system_date_and_time: Optional[SystemDateAndTime] = None
+    system_date_and_time: Optional[SystemDateAndTime] = field(default_factory=SystemDateAndTime)
     device_information: Optional[str] = None
     time_offset: Optional[int] = 0
     username: Optional[str] = None
     password: Optional[str] = None
-    capabilities: Optional[Capabilities] = None
-    profiles: list[Profile] = None
-    network_interfaces: list[NetworkInterface] = None
+    capabilities: Optional[Capabilities] = field(default_factory=Capabilities)
+    profiles: list[Profile] = field(default_factory=Profile)
+    network_interfaces: list[NetworkInterface] = field(default_factory=NetworkInterface)
     network_gateway: Optional[str] = None
-    dns: Optional[DNSInformation] = None
-    ntp: Optional[NTPInformation] = None
-    hostname: Optional[HostnameInformation] = None
-    service_capabilities: Optional[ServiceCapabilities] = None
-    event_properties: Optional[EventProperties] = None
-    audio_output: list[AudioOutputConfiguration] = None
-    audio_decoder: Optional[AudioDecoderConfiguration] = None
-    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
+    dns: Optional[DNSInformation] = field(default_factory=DNSInformation)
+    ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
+    hostname: Optional[HostnameInformation] = field(default_factory=HostnameInformation)
+    audio_output: list[AudioOutputConfiguration] = field(default_factory=AudioOutputConfiguration)
+    audio_decoder: Optional[AudioDecoderConfiguration] = field(default_factory=AudioDecoderConfiguration)
+    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = field(default_factory=AudioDecoderConfigurationOptions)
     subscription_references: list[SubscriptionReference] = field(default_factory=list)
 
 def safe_run(func):
@@ -294,16 +292,16 @@ def get_audio_decoder_configurations(camera: Camera) -> None:
         ...
 
 @safe_run
-def get_service_capabilities(camera: Camera) -> None:
+def get_event_service_capabilities(camera: Camera) -> None:
     body = f"""<tev:GetServiceCapabilities/>"""
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
-    setattr(camera, "service_capabilities", parse_service_capabilities_response(xml))
+    setattr(camera.capabilities.events, "service_capabilities", parse_event_service_capabilities_response(xml))
 
 @safe_run
 def get_event_properties(camera: Camera) -> None:
     body = f"""<tev:GetEventProperties/>"""
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
-    setattr(camera, "event_properties", parse_event_properties_response(xml))
+    setattr(camera.capabilities.events, "event_properties", parse_event_properties_response(xml))
 
 @safe_run
 def get_imaging_settings(camera: Camera, profile: Profile) -> None:
@@ -733,7 +731,7 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
         get_time_offset(camera)
         get_capabilities(camera)
         get_device_information(camera)
-        get_service_capabilities(camera)
+        get_event_service_capabilities(camera)
         get_event_properties(camera)
 
         get_network_interfaces(camera)
