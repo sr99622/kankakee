@@ -31,7 +31,7 @@ def attr(elem: Element, name: str) -> Optional[str]:
 
 def text(elem: Element, path: str) -> Optional[str]:
     try:
-        if not (result := elem.xpath(path, namespaces=NS)): return        
+        if not (result := elem.xpath(path, namespaces=NS)): return
         found = result[0]
         if isinstance(found, etree._Element):
             return "".join(found.itertext()).strip()
@@ -74,14 +74,15 @@ def float_text(elem: Element, path: str) -> Optional[float]:
     if not (value := text(elem, path)): return
     return float(value)
 
-def get_xml_value(xml_data: str, xpath: str) -> str:
-    if not xml_data: return ""
+def get_xml_value(xml: str, xpath: str) -> str:
+    if not xml: raise ValueError("The provided xml is None")
     try:
-        if (doc := etree.fromstring(xml_data.encode('utf-8'))) is None: return ""
-        if (found := doc.xpath(xpath, namespaces=NS)[0]) is None: return ""
+        if (doc := etree.fromstring(xml.encode('utf-8'))) is None: raise ValueError("Invalid xml")
+        if (found := doc.xpath(xpath, namespaces=NS)[0]) is None: raise ValueError("Invalid xpath")
         if isinstance(found, etree._Element):
             return "".join(found.itertext()).strip()
         return str(found).strip()
     except Exception as ex:
         print(f'get_xml_value exception: {ex}')
-        return ""
+    return ""
+

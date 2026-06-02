@@ -111,6 +111,7 @@ class ObjectBrowser(App):
                             node.set_label(f"tours [{length}]")
                             self.camera_tree.refresh()
                             break
+
         if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]\.spots\.\[(\d+)\]", fqn):
             tour_index = int(match[1])
             spot_index = int(match[2])
