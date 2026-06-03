@@ -322,7 +322,7 @@ def get_relay_outputs(camera: Camera) -> None:
 def get_relay_output_options(camera: Camera, relay_output: RelayOutput) -> None:
     body = f"""<tmd:GetRelayOutputOptions><tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken></tmd:GetRelayOutputOptions>"""
     xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
-    print(xml)
+    #print(xml)
     setattr(relay_output, "options", parse_get_relay_output_options_response(xml))
 
 @safe_run
@@ -487,6 +487,30 @@ def move_stop(camera: Camera, profile_token: str, is_zoom: bool=False) -> str:
 </tptz:Stop>""".strip()
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+
+def set_relay_output_settings(camera: Camera, relay_output: RelayOutput) -> str:
+    body = f"""
+<tmd:SetRelayOutputSettings>
+    <tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken>
+    <tmd:Properties>
+        <tt:Mode>{relay_output.properties.mode}</tt:Mode>
+        <tt:DelayTime>{relay_output.properties.delay_time}</tt:DelayTime>
+        <tt:IdleState>{relay_output.properties.idle_state}</tt:IdleState>
+    </tmd:Properties>
+</tmd:SetRelayOutputSettings>""".strip()
+
+    return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+def set_relay_output_state(camera: Camera, relay_output: RelayOutput, state: str) -> str:
+    body = f"""
+<tmd:SetRelayOutputState>
+    <tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken>
+    <tmd:LogicalState>{state}</tmd:LogicalState>
+</tmd:SetRelayOutputState>""".strip()
+
+    return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
+
 
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
     ip = ipaddress.ip_address(encoder.multicast.ip_address)
@@ -778,7 +802,7 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_imaging_options(camera, profile)
         if camera.capabilities.device_io:
             get_device_io_service_capabilities(camera)
-            print(f"relay outputs: {camera.capabilities.device_io.relay_outputs}")
+            #print(f"relay outputs: {camera.capabilities.device_io.relay_outputs}")
             if camera.capabilities.device_io.relay_outputs:
                 get_relay_outputs(camera)
                 for output in camera.capabilities.device_io.relay_outputs:
