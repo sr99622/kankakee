@@ -210,6 +210,7 @@ class ObjectBrowser(App):
                         if not len(camera.subscription_references) and self.app.httpd:
                             self.app.httpd.shutdown()
                             self.app.httpd = None
+                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                     else:
                         events = []
                         for i, child in enumerate(node.children):
@@ -217,8 +218,8 @@ class ObjectBrowser(App):
                                 event = camera.capabilities.events.event_properties.topic_set[i]
                                 print(f"FOUND SELECTED: {event}")
                                 events.append(event)
-                                self.resubscribe_event(camera, event)
-                    node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                        self.resubscribe_event(camera, events[0])
+                        node.set_label(f"[green]topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
             print("FOUND MATCH")
