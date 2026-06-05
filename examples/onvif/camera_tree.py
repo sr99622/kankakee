@@ -204,17 +204,18 @@ class CameraTree(Tree):
         return ".".join(reversed(parts))
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        self.app.debug_log.clear()
         if not event.node.data: return
-        fqn = event.node.data.get("fqn")
-        if not fqn: return
+        if not (fqn := event.node.data.get("fqn")): return
 
+        sfqn = re.sub(r"\[\d+\]", "[*]", fqn)
+        
+        self.app.debug_log.clear()
         self.app.debug_log.write(fqn)
-        if desc := field_descriptions.get(fqn):
+        if desc := field_descriptions.get(sfqn):
             self.app.debug_log.write(desc)
         #if fqn.startswith("capabilities.ptz.presets.["):
-        if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
-            self.app.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
+        #if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
+        #    self.app.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
 
 
     def _make_editable_label(self, field: str, value: str) -> Text:

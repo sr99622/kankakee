@@ -149,12 +149,12 @@ class ObjectBrowser(App):
         if match := re.fullmatch(r"capabilities\.ptz\.presets\.\[(\d+)\]", fqn):
             # modify, delete or goto preset
             index = int(match[1])
-            preset_token = camera.capabilities.ptz.presets[index].token
+            preset = camera.capabilities.ptz.presets[index]
             match event.key:
-                case 'p':
-                    print(set_preset(camera, profile_token, preset_token))
+                case 's':
+                    print(set_preset(camera, profile_token, preset))
                 case 'd':
-                    print(remove_preset(camera, profile_token, preset_token))
+                    print(remove_preset(camera, profile_token, preset))
                     if node := self.camera_tree.cursor_node:
                         parent = node.parent
                         self.camera_tree.move_cursor(parent)
@@ -163,7 +163,7 @@ class ObjectBrowser(App):
                         parent.set_label(f"presets: [{new_count}]")
                         self.camera_tree.refresh()
                 case 'g':
-                    print(goto_preset(camera, profile_token, preset_token))
+                    print(goto_preset(camera, profile_token, preset))
  
         if fqn == "capabilities.ptz.tours":
             # add a new tour
@@ -221,14 +221,15 @@ class ObjectBrowser(App):
         if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]", fqn):
             # start, stop, delete or write to canera
             tour_index = int(match[1])
-            preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
+            preset_tour = camera.capabilities.ptz.tours[tour_index]
+            #preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
             match event.key:
                 case 's':
-                    operate_preset_tour(camera, profile_token, preset_tour_token, 'Start')
+                    operate_preset_tour(camera, profile_token, preset_tour, 'Start')
                 case 't':
-                    operate_preset_tour(camera, profile_token, preset_tour_token, 'Stop')
+                    operate_preset_tour(camera, profile_token, preset_tour, 'Stop')
                 case 'd':
-                    remove_preset_tour(camera, profile_token, preset_tour_token)
+                    remove_preset_tour(camera, profile_token, preset_tour)
                     parent = node.parent
                     self.camera_tree.move_cursor(parent)
                     node.remove()
@@ -238,7 +239,7 @@ class ObjectBrowser(App):
                     self.camera_tree.refresh()
                 case 'w':
                     if node.label.plain.endswith("(* modified)"):
-                        print(modify_preset_tour(camera, profile_token, tour_index))
+                        print(modify_preset_tour(camera, profile_token, preset_tour))
                         node.set_label(f"[{tour_index}]")
 
         if fqn == "capabilities.ptz.xaddr":
@@ -351,7 +352,16 @@ class ObjectBrowser(App):
                         tour_index = int(match.group(1))
                         #preset_tour_token = camera.capabilities.ptz.tours[tour_index].token
                         parent.set_label(f"[{tour_index}] (* modified)")
-
+            elif fqn.startswith("capabilities.ptz.tours.[*]"):
+                print("FOUND A TOUR EDIT")
+                parent = self.editing_node.parent
+                print(f"PARENT: {parent.label}")
+                if data := parent.data:
+                    print(data["fqn"])
+                    if match := re.fullmatch(r"capabilities\.ptz\.tours\.\[(\d+)\]", data["fqn"]):
+                        print("FOUND MATCH")
+                        tour_index = int(match[1])
+                        parent.set_label(f"[{tour_index}] (* modified)")
 
             self.debug_log.write(msg)
         except Exception as ex:

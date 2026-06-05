@@ -37,6 +37,7 @@ EDITABLE_FIELDS = [
     "profiles.[*].video_encoder.rate_control.frame_rate_limit",
     "profiles.[*].video_encoder.rate_control.encoding_interval",
     "profiles.[*].video_encoder.rate_control.bitrate_limit",
+    "capabilities.ptz.presets.[*].name",
     "capabilities.ptz.tours.[*].spots.[*].stay_time",
     "capabilities.ptz.tours.[*].spots.[*].preset_token",
     #capabilities.ptz.tours.[1].spots.[0].preset_detail.preset_token
@@ -45,7 +46,7 @@ EDITABLE_FIELDS = [
 UNUSED_FIELDS = [
     "audio_decoder", 
     "audio_decoder_options", 
-    "audio_output",
+    "audio_outputs",
     "capabilities.events.service_capabilities.persistent_notification_storage",
     "capabilities.events.service_capabilities.event_broker_protocols",
     "capabilities.events.service_capabilities.max_event_brokers",
@@ -206,6 +207,7 @@ PPP       T       Z
 P         T      Z
 P         T     ZZZZZZ
 
+Control camera position using the commands
 
 i - info
 w - up
@@ -280,17 +282,117 @@ DNS servers
 """,
 
     "capabilities.ptz.xaddr":
-"""
-If this field is available, the camera may
-have PTZ. Use the enter key to start PTZ mode
-""",
+ptz_screen,
 
     "capabilities.ptz.presets":
 """
-Available ptz presets are shown in this branch.
-You can assign the current position to a preset
-by selecting the preset with the enter key and
-typing the 'p' key.
+Presets are used to assign camera position
+to a field. Add a new preset at the current
+position by typing the 'n' key.
+
+Open the branch to see the presets. Actions
+can be taken on the presets individually
+when the preset is highlighted.
 """,
 
+    "capabilities.ptz.presets.[*]":
+"""
+
+The preset can modified from this screen.
+Position the camera at the desired settings
+then use the 's' key to set.
+
+g - goto preset position
+s - set preset to current position
+d - delete
+""",
+
+    "capabilities.ptz.presets.[*].token":
+"""
+The token is a read only field assigned by
+the camera to identify the preset.
+""",
+    "capabilities.ptz.presets.[*].name":
+"""
+The name is a user-editable field that can
+be used to identify the preset.
+""",
+    "capabilities.ptz.presets.[*].ptz_position":
+"""
+The ptz_position field is designed to be a 
+read only field to hold the coordinates for the 
+position, but is rarely used in practice.
+""",
+
+    "capabilities.ptz.tours":
+"""
+Tours are a sequence of preset gotos. Build
+a tour by adding spots which are a preset and 
+a stay time.
+
+Add a new tour using the 'n' key. Actions can 
+be taken on individual tours by opening the 
+tours branch and highlighting the tour.
+""",
+
+    "capabilities.ptz.tours.[*]":
+"""
+Tours are built by adding spots to the tour.
+Navigate to the spots branch to add spots. 
+Spots are edited individually once they have 
+been added.
+
+Please consult the tour_options branch to 
+find allowed settings for tours.
+
+s - start tour 
+t - stop tour 
+d - delete tour
+w - write tour to camera (after spot edit) 
+""",
+
+    "capabilities.ptz.tours.[*].spots":
+"""
+Add spots to the tour using the 'n' key.
+Once the spots have been added, open the 
+branch and navigate to the spot to edit 
+the preset and stay_time.
+
+The tour main branch will show modified.
+From there, use the 'w' key to write the 
+spots data to the camera.
+""",
+
+    "capabilities.ptz.tours.[*].spots.[*]":
+"""
+Open the spot leaves to edit the preset and
+stay_time. Consult the tour_options branch
+to view allowed entries.
+
+To delete a spot, use the 'd' key.
+""",
+
+    "capabilities.ptz.tours.[*].spots.[*].preset_token":
+"""
+Use the F2 key to activate the editor and 
+type in a preset token.
+
+
+Allowed values are shown in the tour_options 
+branch. After editing, the tour will show 
+as (* modified). Use the 'w' from the tour 
+main branch to write the tour to the camera.
+""",
+
+    "capabilities.ptz.tours.[*].spots.[*].stay_time":
+"""
+Use the F2 key to activate the editor and 
+type in a stay time.
+
+
+Allowed values are shown in the tour_options 
+branch. After editing, the tour will show 
+as (* modified). Use the 'w' from the tour 
+main branch to write the tour to the camera.
+"""
 }

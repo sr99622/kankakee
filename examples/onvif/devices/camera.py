@@ -54,21 +54,23 @@ class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
     system_date_and_time: Optional[SystemDateAndTime] = field(default_factory=SystemDateAndTime)
-    device_information: Optional[str] = None
+    device_information: Optional[DeviceInformation] = field(default_factory=DeviceInformation)
+    # not sure which implementation is more correct
+    #device_information: Optional[DeviceInformation] = None
     time_offset: Optional[int] = 0
     username: Optional[str] = None
     password: Optional[str] = None
     capabilities: Optional[Capabilities] = field(default_factory=Capabilities)
-    profiles: list[Profile] = field(default_factory=Profile)
+    profiles: list[Profile] = field(default_factory=list)
     network_interfaces: list[NetworkInterface] = field(default_factory=NetworkInterface)
     network_gateway: Optional[str] = None
     dns: Optional[DNSInformation] = field(default_factory=DNSInformation)
     ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
     hostname: Optional[HostnameInformation] = field(default_factory=HostnameInformation)
-    audio_output: list[AudioOutputConfiguration] = field(default_factory=AudioOutputConfiguration)
-    audio_decoder: Optional[AudioDecoderConfiguration] = field(default_factory=AudioDecoderConfiguration)
-    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = field(default_factory=AudioDecoderConfigurationOptions)
     subscription_references: list[SubscriptionReference] = field(default_factory=list)
+    audio_outputs: list[AudioOutputConfiguration] = None
+    audio_decoder: Optional[AudioDecoderConfiguration] = None
+    audio_decoder_options: Optional[AudioDecoderConfigurationOptions] = None
 
 def safe_run(func):
     @wraps(func)
@@ -284,14 +286,14 @@ def get_audio_decoder_configurations(camera: Camera) -> None:
         body = f"""<trt:GetAudioDecoderConfigurations/>"""
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
         setattr(camera, "audio_decoder", parse_audio_decoder_configurations_response(xml))
-        body = f"""<trt:GetAudioOutputConfigurations/>"""
-        xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-        setattr(camera, "audio_output", parse_audio_output_configurations_response(xml))
         body = f"""<trt:GetAudioDecoderConfigurationOptions/>"""
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
         setattr(camera, "audio_decoder_options", parse_audio_decoder_configuration_options_response(xml))
+        body = f"""<trt:GetAudioOutputConfigurations/>"""
+        xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+        setattr(camera, "audio_outputs", parse_audio_output_configurations_response(xml))
     except Exception as ex:
-        ...
+        print(f"get audio decoder configurations error: {ex}")
 
 @safe_run
 def get_event_service_capabilities(camera: Camera) -> None:
@@ -349,31 +351,36 @@ def get_presets(camera: Camera, profile_token: str) -> None:
     setattr(camera.capabilities.ptz, "presets", parse_get_presets_response(xml))
 
 @safe_run
-def remove_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
+def remove_preset(camera: Camera, profile_token: str, preset: PTZPreset) -> str:
     body = f"""
 <tptz:RemovePreset>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tptz:PresetToken>{preset_token}</tptz:PresetToken>
+    <tptz:PresetToken>{preset.token}</tptz:PresetToken>
 </tptz:RemovePreset>""".strip()
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def goto_preset(camera: Camera, profile_token: str, preset_token: str) -> str:
+def goto_preset(camera: Camera, profile_token: str, preset: PTZPreset) -> str:
     body = f"""
 <tptz:GotoPreset>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tptz:PresetToken>{preset_token}</tptz:PresetToken>
+    <tptz:PresetToken>{preset.token}</tptz:PresetToken>
 </tptz:GotoPreset>""".strip()
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def set_preset(camera: Camera, profile_token: str, preset_token: str=None) -> str:
-    preset = ""
-    if preset_token:
-        preset = f"""<tptz:PresetToken>{preset_token}</tptz:PresetToken>"""
-    body = f"""<tptz:SetPreset><tptz:ProfileToken>{profile_token}</tptz:ProfileToken>{preset}</tptz:SetPreset>"""
+def set_preset(camera: Camera, profile_token: str, preset: PTZPreset=None) -> str:
+    preset_xml = ""
+    if preset:
+        preset_xml = f"""
+    <tptz:PresetToken>{preset.token}</tptz:PresetToken>
+    <tptz:PresetName>{preset.name}</tptz:PresetName>"""
+    body = f"""
+<tptz:SetPreset>
+    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>{preset_xml}
+</tptz:SetPreset>""".strip()
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
@@ -396,29 +403,30 @@ def create_preset_tour(camera: Camera, profile_token: str) -> str:
     body = f"""<tptz:CreatePresetTour><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:CreatePresetTour>"""
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-@safe_run
-def get_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
-    body = f"""
-<tptz:GetPresetTour>
-    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
-</tptz:GetPresetTour>""".strip()
-    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
+#@safe_run
+#def get_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
+#    body = f"""
+#<tptz:GetPresetTour>
+#    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
+#    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+#</tptz:GetPresetTour>""".strip()
+#    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def remove_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
+def remove_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTour) -> str:
     body = f"""
 <tptz:RemovePresetTour>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+    <tptz:PresetTourToken>{preset_tour.token}</tptz:PresetTourToken>
 </tptz:RemovePresetTour>""".strip()
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 
 @safe_run
-def modify_preset_tour(camera: Camera, profile_token: str, tour_index: int) ->str:
+def modify_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTour) ->str:
 
-    preset_tour = camera.capabilities.ptz.tours[tour_index]
+    auto_start = "true" if preset_tour.auto_start else "false"
+    #preset_tour = camera.capabilities.ptz.tours[tour_index]
     spots = []
     for spot in preset_tour.spots:
         print(f"detail: {spot.preset_token} stay_time: {spot.stay_time}")
@@ -434,7 +442,9 @@ def modify_preset_tour(camera: Camera, profile_token: str, tour_index: int) ->st
     body = f"""
 <tptz:ModifyPresetTour>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tt:PresetTour token="{preset_tour.token}">{"".join(spots)}
+    <tt:PresetTour token="{preset_tour.token}">
+    <tt:Name>{preset_tour.name}</tt:Name>
+    <tt:AutoStart>{auto_start}</tt:AutoStart>{"".join(spots)}
     </tt:PresetTour>
 </tptz:ModifyPresetTour>""".strip()
 
@@ -443,11 +453,11 @@ def modify_preset_tour(camera: Camera, profile_token: str, tour_index: int) ->st
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def operate_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str, operation: str) -> str:
+def operate_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTour, operation: str) -> str:
     body = f"""
 <tptz:OperatePresetTour>
     <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
+    <tptz:PresetTourToken>{preset_tour.token}</tptz:PresetTourToken>
     <tptz:Operation>{operation}</tptz:Operation>
 </tptz:OperatePresetTour>""".strip()
     
@@ -790,7 +800,6 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
             get_presets(camera, profile.token)
             get_preset_tours(camera, profile.token)
             print(get_preset_tour_options(camera, camera.profiles[0].token))
-        get_audio_decoder_configurations(camera) # odd
         for profile in camera.profiles:
             get_stream_uri(camera, profile)
             get_snapshot_uri(camera, profile)
@@ -807,6 +816,8 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_relay_outputs(camera)
                 for output in camera.capabilities.device_io.relay_outputs:
                     get_relay_output_options(camera, output)
+            if camera.capabilities.device_io.audio_outputs:
+                get_audio_decoder_configurations(camera)
 
     except Exception as ex:
         print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
