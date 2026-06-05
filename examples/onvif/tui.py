@@ -104,9 +104,16 @@ class ObjectBrowser(App):
                     except ValueError:
                         continue
  
-    def get_reference_for_event(self, camera: Camera, event: str) -> SubscriptionReference:
+    def get_reference_for_event(self, camera: Camera) -> SubscriptionReference:
+        print(f"GET REFERENCE FOR EVENT: {camera.xaddr}")
+        ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
+        print(f"HOSTNAME: {ip_obj}")
         for reference in camera.subscription_references:
-            if reference.event == event:
+            print(f"REFERENCE: {reference}")
+            ref_obj = ipaddress.ip_address(urlparse(reference.xaddr).hostname)
+            print(f"REF OBJ: {ref_obj}")
+            #if reference.event == event:
+            if ip_obj == ref_obj:
                 return reference
  
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
@@ -121,21 +128,24 @@ class ObjectBrowser(App):
     def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
             print("resubscribe_event")
-            if self.app.httpd:
+
+
+            #'''
+            if self.httpd:
                 print("HAVE HTTPD")
             else:
                 print("starting http worker thread")
-                self.app.run_worker(self.app.http_server_worker, thread=True)
+                self.run_worker(self.http_server_worker, thread=True)
 
-            if reference := self.get_reference_for_event(camera, event):
+            if reference := self.get_reference_for_event(camera):
                 camera.subscription_references.remove(reference)
-                self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
+                self.call_from_thread(self.debug_log.write, "RESUBSCRIBE EVENT")
 
-            print(f"self.app.ip_address: {self.app.ip_address}")
+            print(f"self.ip_address: {self.ip_address}")
             print(f"event under consideration: {event}")
             ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
             print(f"camera ip: {ip_obj}")
-            ip_address = self.app.ip_address
+            ip_address = self.ip_address
             if ip_address == "0.0.0.0":
                 ip_address = self.find_local_subnet_matches(ip_obj)
             print(f"event listener address: {ip_address}")
@@ -150,7 +160,7 @@ class ObjectBrowser(App):
             if reference is None:
                 resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
             else:
-                resubscribe_timer = self.app.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
+                resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
 
             reference = SubscriptionReference(
                 xaddr=subscription_reference, 
@@ -160,6 +170,7 @@ class ObjectBrowser(App):
             )
 
             camera.subscription_references.append(reference)
+            #'''
         except Exception as ex:
             print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
  
@@ -171,6 +182,34 @@ class ObjectBrowser(App):
         if not (fqn := node.data.get("fqn")): return
 
         #print(f"FQN: {fqn}")
+
+        if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
+            index = int(match[1])
+            topic = camera.capabilities.events.event_properties.topic_set[index]
+            print(f"FOUND EVENT TOPIC: {node.label}, {topic}")
+            print(f"event.key: {event.key}")
+            match event.key:
+                case 'space':
+                    print("GOT SPACE KEY")
+                    if node.label.plain.startswith("*"):
+                        node.set_label(f"[{index}]: {topic}")
+                    else:
+                        node.set_label(f"* [{index}]: {topic}")
+                    node.parent.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (* modified)")
+
+        if fqn == "capabilities.events.event_properties.topic_set" and node.label.plain.endswith("(* modified)"):
+            print("FOUND TOPIC SET")
+            match event.key:
+                case 'w':
+                    events = []
+                    node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                    for i, child in enumerate(node.children):
+                        if child.label.plain.startswith("*"):
+                            event = camera.capabilities.events.event_properties.topic_set[i]
+                            print(f"FOUND SELECTED: {event}")
+                            events.append(event)
+                            self.resubscribe_event(camera, event)
+
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
             print("FOUND MATCH")
@@ -316,49 +355,49 @@ class ObjectBrowser(App):
                         node.set_label(f"[{tour_index}]")
 
         if fqn == "capabilities.ptz.xaddr":
-            self.app.debug_log.clear()
-            self.app.debug_log.write(ptz_screen)
+            self.debug_log.clear()
+            self.debug_log.write(ptz_screen)
             self.is_zoom_move = False
             match event.key:
                 case 'w':
-                    self.app.debug_log.write(f"\nmoving up...")
+                    self.debug_log.write(f"\nmoving up...")
                     xml = continuous_move(camera, profile_token, 0, 0.5, 0)
                     #print(xml)
                 case 's':
-                    self.app.debug_log.write(f"\nmoving down...")
+                    self.debug_log.write(f"\nmoving down...")
                     xml = continuous_move(camera, profile_token, 0, -0.5, 0)
                     #print(xml)
                 case 'a':
-                    self.app.debug_log.write(f"\npanning right...")
+                    self.debug_log.write(f"\npanning right...")
                     xml = continuous_move(camera, profile_token, 0.5, 0, 0)
                     #print(xml)
                 case 'd':
-                    self.app.debug_log.write(f"\npanning left...")
+                    self.debug_log.write(f"\npanning left...")
                     xml = continuous_move(camera, profile_token, -0.5, 0, 0)
                     #print(xml)
                 case 'z':
-                    self.app.debug_log.write(f"\nzooming in...")
+                    self.debug_log.write(f"\nzooming in...")
                     xml = continuous_move(camera, profile_token, 0, 0, 0.5)
                     self.is_zoom_move = True 
                     #print(xml)
                 case 'x':
-                    self.app.debug_log.write(f"\nzooming out...")
+                    self.debug_log.write(f"\nzooming out...")
                     xml = continuous_move(camera, profile_token, 0, 0, -0.5)
                     self.is_zoom_move = True
                     #print(xml)
                 case 'c':
-                    self.app.debug_log.write(f"\nstop move")
+                    self.debug_log.write(f"\nstop move")
                     xml = move_stop(camera, profile_token, self.is_zoom_move)
                     #print(xml)
                 case 'i':
-                    self.app.debug_log.write(f"\ninformation\n")
+                    self.debug_log.write(f"\ninformation\n")
                     xml = get_status(camera, profile_token)
                     pan_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@x")
                     pan_y = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:PanTilt/@y")
                     zoom_x = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:Position/tt:Zoom/@x")
                     pan_tilt_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:PanTilt")
                     zoom_status = get_xml_value(xml, ".//tptz:GetStatusResponse/tptz:PTZStatus/tt:MoveStatus/tt:Zoom")
-                    self.app.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
+                    self.debug_log.write(f"X:    {pan_x}\nY:    {pan_y}\nZOOM: {zoom_x}\nPAN TILT STATUS: {pan_tilt_status}\nZOOM STATUS: {zoom_status}")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input is not self.edit_input:

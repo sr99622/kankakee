@@ -64,8 +64,8 @@ class CameraTree(Tree):
                 camera = node.data["camera"]
                 event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
-                    print("unsubscribe", flush=True)
-                    if reference := self.app.get_reference_for_event(camera, event):
+                    print("--------------------unsubscribe", flush=True)
+                    if reference := self.app.get_reference_for_event(camera):
                         reference.resubscribe_timer.stop()
                         self.app.debug_log.write(reference.xaddr)
                         self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
@@ -73,6 +73,8 @@ class CameraTree(Tree):
                         if not len(camera.subscription_references) and self.app.httpd:
                             self.app.httpd.shutdown()
                             self.app.httpd = None
+                    else:
+                        print("Here we go again")
                     label = node.label.plain[3:]
                 else:
                     self.app.resubscribe_event(camera, event)
