@@ -57,79 +57,6 @@ class CameraTree(Tree):
         ("u", "pull", "Pull"),
     ]
 
-    def get_reference_for_event(self, camera: Camera, event: str) -> SubscriptionReference:
-        for reference in camera.subscription_references:
-            if reference.event == event:
-                return reference
-
-    def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
-        return self.set_timer(
-            max(1.0, delay),
-            lambda: self.run_worker(
-                lambda: self.resubscribe_event(camera, event),
-                thread=True,
-            ),
-        )
-
-    def find_local_subnet_matches(self, remote_target_ip: str) -> str:
-        target = ipaddress.IPv4Address(remote_target_ip)
-
-        for interface, addrs in psutil.net_if_addrs().items():
-            for addr in addrs:
-                # Look only for active IPv4 configurations with a valid netmask
-                if addr.family == socket.AF_INET and addr.netmask:
-                    try:
-                        network = ipaddress.IPv4Interface(f"{addr.address}/{addr.netmask}").network
-                        if target in network:
-                            print(f"Match found! {remote_target_ip} is on the same subnet as interface '{interface}' ({addr.address})")
-                            return addr.address
-                    except ValueError:
-                        continue
-
-    def resubscribe_event(self, camera: Camera, event: str) -> None:
-        try:
-            print("resubscribe_event")
-            if self.app.httpd:
-                print("HAVE HTTPD")
-            else:
-                print("starting http worker thread")
-                self.app.run_worker(self.app.http_server_worker, thread=True)
-
-            if reference := self.get_reference_for_event(camera, event):
-                camera.subscription_references.remove(reference)
-                self.app.call_from_thread(self.app.debug_log.write, "RESUBSCRIBE EVENT")
-
-            print(f"self.app.ip_address: {self.app.ip_address}")
-            print(f"event under consideration: {event}")
-            ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
-            print(f"camera ip: {ip_obj}")
-            ip_address = self.app.ip_address
-            if ip_address == "0.0.0.0":
-                ip_address = self.find_local_subnet_matches(ip_obj)
-            print(f"event listener address: {ip_address}")
-
-            xml = subscribe_events(camera, event, ip_address)
-            print(xml, flush=True)
-            subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
-            termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
-            dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
-            delay = (dt - datetime.now(timezone.utc)).total_seconds() - camera.time_offset - RESUBSCRIBE_MARGIN_SECONDS
-
-            if reference is None:
-                resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
-            else:
-                resubscribe_timer = self.app.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
-
-            reference = SubscriptionReference(
-                xaddr=subscription_reference, 
-                event=event, 
-                termination_time=termination_time,
-                resubscribe_timer=resubscribe_timer
-            )
-
-            camera.subscription_references.append(reference)
-        except Exception as ex:
-            print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
 
     def action_event(self) -> None:
         if node := self.cursor_node:
@@ -138,7 +65,7 @@ class CameraTree(Tree):
                 event = node.label.plain.split(":")[1].strip()
                 if node.label.plain.startswith(" * "):
                     print("unsubscribe", flush=True)
-                    if reference := self.get_reference_for_event(camera, event):
+                    if reference := self.app.get_reference_for_event(camera, event):
                         reference.resubscribe_timer.stop()
                         self.app.debug_log.write(reference.xaddr)
                         self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
@@ -148,7 +75,7 @@ class CameraTree(Tree):
                             self.app.httpd = None
                     label = node.label.plain[3:]
                 else:
-                    self.resubscribe_event(camera, event)
+                    self.app.resubscribe_event(camera, event)
                     label = f" * {node.label}"
                 node.set_label(label)
 

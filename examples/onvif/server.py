@@ -39,7 +39,7 @@ def simple_items(elem: etree._Element | None) -> dict[str, str]:
     }
 
 def parse_notify(ip_address: str, xml: str) -> list[dict[str, str]]:
-    root = ET.fromstring(xml)
+    root = etree.fromstring(xml.encode("utf-8"))
     output = []
     for msg in root.findall(".//wsnt:NotificationMessage", NS):
         topic = text(msg, "wsnt:Topic")
