@@ -201,15 +201,24 @@ class ObjectBrowser(App):
             print("FOUND TOPIC SET")
             match event.key:
                 case 'w':
-                    events = []
+                    if reference := self.app.get_reference_for_event(camera):
+                        print("FOUND EXISTING REFERENCE")
+                        reference.resubscribe_timer.stop()
+                        self.app.debug_log.write(reference.xaddr)
+                        self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
+                        camera.subscription_references.remove(reference)
+                        if not len(camera.subscription_references) and self.app.httpd:
+                            self.app.httpd.shutdown()
+                            self.app.httpd = None
+                    else:
+                        events = []
+                        for i, child in enumerate(node.children):
+                            if child.label.plain.startswith("*"):
+                                event = camera.capabilities.events.event_properties.topic_set[i]
+                                print(f"FOUND SELECTED: {event}")
+                                events.append(event)
+                                self.resubscribe_event(camera, event)
                     node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
-                    for i, child in enumerate(node.children):
-                        if child.label.plain.startswith("*"):
-                            event = camera.capabilities.events.event_properties.topic_set[i]
-                            print(f"FOUND SELECTED: {event}")
-                            events.append(event)
-                            self.resubscribe_event(camera, event)
-
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
             print("FOUND MATCH")
