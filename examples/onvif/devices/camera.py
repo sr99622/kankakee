@@ -731,14 +731,37 @@ def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
     body = f"""<tev:PullMessages><tev:Timeout>PT1S</tev:Timeout><tev:MessageLimit>10</tev:MessageLimit></tev:PullMessages>"""
     return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
 
+
 @safe_run
-def subscribe_events(camera: Camera, event: str, ip_address: str) -> str:
+def subscribe_event(camera: Camera, event: str, ip_address: str) -> str:
     callback_url = f"http://{ip_address}:8800/onvif/events"
     initial_termination_time = "PT1M"
 
     filter = f"""
                 <wsnt:Filter>
                     <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
+                </wsnt:Filter>"""
+
+    body = f"""
+        <wsnt:Subscribe>
+            <wsnt:ConsumerReference>
+                <wsa:Address>{callback_url}</wsa:Address>
+            </wsnt:ConsumerReference>{filter}
+            <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
+        </wsnt:Subscribe>""".strip()
+
+    xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+    return xml
+
+@safe_run
+def subscribe_events(camera: Camera, events: list[str], ip_address: str) -> str:
+    callback_url = f"http://{ip_address}:8800/onvif/events"
+    initial_termination_time = "PT1M"
+
+    topic_expression = " | ".join(f"tns1:{item}" for item in events)
+    filter = f"""
+                <wsnt:Filter>
+                    <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">{topic_expression}</wsnt:TopicExpression>
                 </wsnt:Filter>"""
 
     body = f"""

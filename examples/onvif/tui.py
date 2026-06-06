@@ -116,16 +116,16 @@ class ObjectBrowser(App):
             if ip_obj == ref_obj:
                 return reference
  
-    def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
+    def schedule_resubscribe_event(self, camera: Camera, events: list[str], delay: float) -> Timer:
         return self.set_timer(
             max(1.0, delay),
             lambda: self.run_worker(
-                lambda: self.resubscribe_event(camera, event),
+                lambda: self.resubscribe_event(camera, events),
                 thread=True,
             ),
         )
  
-    def resubscribe_event(self, camera: Camera, event: str) -> None:
+    def resubscribe_event(self, camera: Camera, events: list[str]) -> None:
         try:
             print("resubscribe_event")
 
@@ -142,7 +142,7 @@ class ObjectBrowser(App):
                 self.call_from_thread(self.debug_log.write, "RESUBSCRIBE EVENT")
 
             print(f"self.ip_address: {self.ip_address}")
-            print(f"event under consideration: {event}")
+            print(f"events under consideration: {events}")
             ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
             print(f"camera ip: {ip_obj}")
             ip_address = self.ip_address
@@ -150,7 +150,7 @@ class ObjectBrowser(App):
                 ip_address = self.find_local_subnet_matches(ip_obj)
             print(f"event listener address: {ip_address}")
 
-            xml = subscribe_events(camera, event, ip_address)
+            xml = subscribe_events(camera, events, ip_address)
             print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
@@ -158,13 +158,13 @@ class ObjectBrowser(App):
             delay = (dt - datetime.now(timezone.utc)).total_seconds() - camera.time_offset - RESUBSCRIBE_MARGIN_SECONDS
 
             if reference is None:
-                resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
+                resubscribe_timer = self.schedule_resubscribe_event(camera, events, delay)
             else:
-                resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
+                resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, events, delay)
 
             reference = SubscriptionReference(
                 xaddr=subscription_reference, 
-                event=event, 
+                events=events, 
                 termination_time=termination_time,
                 resubscribe_timer=resubscribe_timer
             )
@@ -218,7 +218,7 @@ class ObjectBrowser(App):
                                 event = camera.capabilities.events.event_properties.topic_set[i]
                                 print(f"FOUND SELECTED: {event}")
                                 events.append(event)
-                        self.resubscribe_event(camera, events[0])
+                        self.resubscribe_event(camera, events)
                         node.set_label(f"[green]topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
