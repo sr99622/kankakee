@@ -208,27 +208,24 @@ class ObjectBrowser(App):
                 case 'w':
                     print(f"FOUND TOPIC SET WRITE: {len(camera.subscription_references)}")
                     #if reference := self.app.get_reference_for_event(camera):
-                    if len(camera.subscription_references):
-                        for reference in camera.subscription_references:
-                            print("FOUND EXISTING REFERENCE")
-                            reference.resubscribe_timer.stop()
-                            print(f"removing reference: {reference.xaddr}")
-                            print(unsubscribe(camera, reference.xaddr))
-                            #camera.subscription_references.remove(reference)
-                            #if not len(camera.subscription_references) and self.app.httpd:
-                            #    self.app.httpd.shutdown()
-                            #    self.app.httpd = None
-                        camera.subscription_references.clear()
-                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
-                    else:
-                        #events = []
-                        for i, child in enumerate(node.children):
-                            if child.label.plain.startswith("*"):
-                                event = camera.capabilities.events.event_properties.topic_set[i]
-                                print(f"FOUND SELECTED: {event}")
-                                #events.append(event)
-                                self.resubscribe_event(camera, event)
-                        node.set_label(f"[green]topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                    for reference in camera.subscription_references:
+                        print("FOUND EXISTING REFERENCE")
+                        reference.resubscribe_timer.stop()
+                        print(f"removing reference: {reference.xaddr}")
+                        print(unsubscribe(camera, reference.xaddr))
+                        #camera.subscription_references.remove(reference)
+                        #if not len(camera.subscription_references) and self.app.httpd:
+                        #    self.app.httpd.shutdown()
+                        #    self.app.httpd = None
+                    camera.subscription_references.clear()
+                    node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                    for i, child in enumerate(node.children):
+                        if child.label.plain.startswith("*"):
+                            event = camera.capabilities.events.event_properties.topic_set[i]
+                            print(f"FOUND SELECTED: {event}")
+                            self.resubscribe_event(camera, event)
+                    color = "" if not len(camera.subscription_references) else "[green]"
+                    node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
             print("FOUND MATCH")
