@@ -109,18 +109,18 @@ class ObjectBrowser(App):
             if reference.event == event:
                 return reference
 
-    def get_references_for_camera(self, camera: Camera) -> list[SubscriptionReference]:
-        references = []
-        print(f"GET REFERENCE FOR EVENT: {camera.xaddr}")
-        ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
-        print(f"HOSTNAME: {ip_obj}")
-        for reference in camera.subscription_references:
-            print(f"REFERENCE: {reference}")
-            ref_obj = ipaddress.ip_address(urlparse(reference.xaddr).hostname)
-            print(f"REF OBJ: {ref_obj}")
-            #if reference.event == event:
-            if ip_obj == ref_obj:
-                references.append(reference)
+    #def get_references_for_camera(self, camera: Camera) -> list[SubscriptionReference]:
+    #    references = []
+    #    print(f"GET REFERENCE FOR EVENT: {camera.xaddr}")
+    #    ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
+    #    print(f"HOSTNAME: {ip_obj}")
+    #    for reference in camera.subscription_references:
+    #        print(f"REFERENCE: {reference}")
+    #        ref_obj = ipaddress.ip_address(urlparse(reference.xaddr).hostname)
+    #        print(f"REF OBJ: {ref_obj}")
+    #        #if reference.event == event:
+    #        if ip_obj == ref_obj:
+    #            references.append(reference)
  
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
         return self.set_timer(
@@ -192,8 +192,8 @@ class ObjectBrowser(App):
         if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
             index = int(match[1])
             topic = camera.capabilities.events.event_properties.topic_set[index]
-            print(f"FOUND EVENT TOPIC: {node.label}, {topic}")
-            print(f"event.key: {event.key}")
+            #print(f"FOUND EVENT TOPIC: {node.label}, {topic}")
+            #print(f"event.key: {event.key}")
             match event.key:
                 case 'space':
                     print("GOT SPACE KEY")
@@ -204,20 +204,21 @@ class ObjectBrowser(App):
                     node.parent.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (* modified)")
 
         if fqn == "capabilities.events.event_properties.topic_set" and node.label.plain.endswith("(* modified)"):
-            print("FOUND TOPIC SET")
             match event.key:
                 case 'w':
+                    print(f"FOUND TOPIC SET WRITE: {len(camera.subscription_references)}")
                     #if reference := self.app.get_reference_for_event(camera):
                     if len(camera.subscription_references):
                         for reference in camera.subscription_references:
                             print("FOUND EXISTING REFERENCE")
                             reference.resubscribe_timer.stop()
-                            self.app.debug_log.write(reference.xaddr)
-                            self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
-                            camera.subscription_references.remove(reference)
+                            print(f"removing reference: {reference.xaddr}")
+                            print(unsubscribe(camera, reference.xaddr))
+                            #camera.subscription_references.remove(reference)
                             #if not len(camera.subscription_references) and self.app.httpd:
                             #    self.app.httpd.shutdown()
                             #    self.app.httpd = None
+                        camera.subscription_references.clear()
                         node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                     else:
                         #events = []
