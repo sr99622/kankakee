@@ -220,13 +220,13 @@ class ObjectBrowser(App):
                             #    self.app.httpd = None
                         node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                     else:
-                        events = []
+                        #events = []
                         for i, child in enumerate(node.children):
                             if child.label.plain.startswith("*"):
                                 event = camera.capabilities.events.event_properties.topic_set[i]
                                 print(f"FOUND SELECTED: {event}")
-                                events.append(event)
-                        self.resubscribe_event(camera, events[0])
+                                #events.append(event)
+                                self.resubscribe_event(camera, event)
                         node.set_label(f"[green]topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
