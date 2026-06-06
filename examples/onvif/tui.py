@@ -227,7 +227,7 @@ class ObjectBrowser(App):
                     color = "" if not len(camera.subscription_references) else "[green]"
                     node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
-        if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
+        if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)) and node.label.plain.endswith("(* modified)"):
             print("FOUND MATCH")
             index = int(match[1])
             relay_output = camera.capabilities.device_io.relay_outputs[index]
@@ -238,6 +238,7 @@ class ObjectBrowser(App):
                         # set_relay_output_settings
                         print(relay_output.token)
                         print(set_relay_output_settings(camera, relay_output))
+                        node.set_label(f"[{index}]")
                     except Exception as ex:
                         print(f"set relay output settings error: {ex}")
                 case 'a':
@@ -419,10 +420,10 @@ class ObjectBrowser(App):
         if event.input is not self.edit_input:
             return
 
-        self.debug_log.write(f"ON INPUT SUBMITTED: {self.editing_node.data["fqn"]}")
+        print(f"ON INPUT SUBMITTED: {self.editing_node.data["fqn"]}")
 
         try:
-            self.debug_log.write(f"editing field type: {self.editing_field_type}")
+            print(f"editing field type: {self.editing_field_type}")
 
             #base_type, is_optional, is_list = analyze_field_type(self.editing_field_type)
             old_value = getattr(self.editing_owner, self.editing_field)
@@ -490,6 +491,16 @@ class ObjectBrowser(App):
                         print("FOUND MATCH")
                         tour_index = int(match[1])
                         parent.set_label(f"[{tour_index}] (* modified)")
+            elif fqn.startswith("capabilities.device_io.relay_outputs.[*].properties"):
+                print("FOUND RELAY OUTPUT EDIT")
+                parent = self.editing_node.parent.parent
+                print(f"PARENT: {parent.label}")
+                if data := parent.data:
+                    print(data["fqn"])
+
+                    if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", data["fqn"]):
+                        index = int(match[1])
+                        parent.set_label(f"[{index}] (* modified)")
 
             self.debug_log.write(msg)
         except Exception as ex:

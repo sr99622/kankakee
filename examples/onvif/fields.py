@@ -40,7 +40,9 @@ EDITABLE_FIELDS = [
     "capabilities.ptz.presets.[*].name",
     "capabilities.ptz.tours.[*].spots.[*].stay_time",
     "capabilities.ptz.tours.[*].spots.[*].preset_token",
-    #capabilities.ptz.tours.[1].spots.[0].preset_detail.preset_token
+    "capabilities.device_io.relay_outputs.[*].properties.mode",
+    "capabilities.device_io.relay_outputs.[*].properties.delay_time",
+    "capabilities.device_io.relay_outputs.[*].properties.idle_state",
 ]
 
 UNUSED_FIELDS = [
