@@ -51,7 +51,7 @@ class TopicNamespaceLocation:
 @dataclass
 class SubscriptionReference:
     xaddr: Optional[str] = None
-    events: list[str] = field(default_factory=list)
+    event: Optional[str] = None
     termination_time: Optional[str] = None
     resubscribe_timer: Optional[Timer] = None
 

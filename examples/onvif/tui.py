@@ -19,7 +19,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
         get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages, \
-        set_relay_output_settings, set_relay_output_state
+        set_relay_output_settings, set_relay_output_state, subscribe_event
 from datastructures.event import SubscriptionReference, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
@@ -103,8 +103,14 @@ class ObjectBrowser(App):
                             return addr.address
                     except ValueError:
                         continue
- 
-    def get_reference_for_event(self, camera: Camera) -> SubscriptionReference:
+
+    def get_reference_for_event(self, camera: Camera, event: str) -> SubscriptionReference:
+        for reference in camera.subscription_references:
+            if reference.event == event:
+                return reference
+
+    def get_references_for_camera(self, camera: Camera) -> list[SubscriptionReference]:
+        references = []
         print(f"GET REFERENCE FOR EVENT: {camera.xaddr}")
         ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
         print(f"HOSTNAME: {ip_obj}")
@@ -114,18 +120,18 @@ class ObjectBrowser(App):
             print(f"REF OBJ: {ref_obj}")
             #if reference.event == event:
             if ip_obj == ref_obj:
-                return reference
+                references.append(reference)
  
-    def schedule_resubscribe_event(self, camera: Camera, events: list[str], delay: float) -> Timer:
+    def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
         return self.set_timer(
             max(1.0, delay),
             lambda: self.run_worker(
-                lambda: self.resubscribe_event(camera, events),
+                lambda: self.resubscribe_event(camera, event),
                 thread=True,
             ),
         )
  
-    def resubscribe_event(self, camera: Camera, events: list[str]) -> None:
+    def resubscribe_event(self, camera: Camera, event: str) -> None:
         try:
             print("resubscribe_event")
 
@@ -137,7 +143,7 @@ class ObjectBrowser(App):
                 print("starting http worker thread")
                 self.run_worker(self.http_server_worker, thread=True)
 
-            if reference := self.get_reference_for_event(camera):
+            if reference := self.get_reference_for_event(camera, event):
                 camera.subscription_references.remove(reference)
                 self.call_from_thread(self.debug_log.write, "RESUBSCRIBE EVENT")
 
@@ -150,7 +156,7 @@ class ObjectBrowser(App):
                 ip_address = self.find_local_subnet_matches(ip_obj)
             print(f"event listener address: {ip_address}")
 
-            xml = subscribe_events(camera, events, ip_address)
+            xml = subscribe_event(camera, event, ip_address)
             print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
@@ -158,13 +164,13 @@ class ObjectBrowser(App):
             delay = (dt - datetime.now(timezone.utc)).total_seconds() - camera.time_offset - RESUBSCRIBE_MARGIN_SECONDS
 
             if reference is None:
-                resubscribe_timer = self.schedule_resubscribe_event(camera, events, delay)
+                resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
             else:
-                resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, events, delay)
+                resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
 
             reference = SubscriptionReference(
                 xaddr=subscription_reference, 
-                events=events, 
+                event=event, 
                 termination_time=termination_time,
                 resubscribe_timer=resubscribe_timer
             )
@@ -201,15 +207,17 @@ class ObjectBrowser(App):
             print("FOUND TOPIC SET")
             match event.key:
                 case 'w':
-                    if reference := self.app.get_reference_for_event(camera):
-                        print("FOUND EXISTING REFERENCE")
-                        reference.resubscribe_timer.stop()
-                        self.app.debug_log.write(reference.xaddr)
-                        self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
-                        camera.subscription_references.remove(reference)
-                        if not len(camera.subscription_references) and self.app.httpd:
-                            self.app.httpd.shutdown()
-                            self.app.httpd = None
+                    #if reference := self.app.get_reference_for_event(camera):
+                    if len(camera.subscription_references):
+                        for reference in camera.subscription_references:
+                            print("FOUND EXISTING REFERENCE")
+                            reference.resubscribe_timer.stop()
+                            self.app.debug_log.write(reference.xaddr)
+                            self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
+                            camera.subscription_references.remove(reference)
+                            #if not len(camera.subscription_references) and self.app.httpd:
+                            #    self.app.httpd.shutdown()
+                            #    self.app.httpd = None
                         node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                     else:
                         events = []
@@ -218,7 +226,7 @@ class ObjectBrowser(App):
                                 event = camera.capabilities.events.event_properties.topic_set[i]
                                 print(f"FOUND SELECTED: {event}")
                                 events.append(event)
-                        self.resubscribe_event(camera, events)
+                        self.resubscribe_event(camera, events[0])
                         node.set_label(f"[green]topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn):
