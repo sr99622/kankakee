@@ -19,8 +19,8 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
         get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages, \
-        set_relay_output_settings, set_relay_output_state, subscribe_event
-from datastructures.event import SubscriptionReference, parse_pull_messages_response
+        set_relay_output_settings, set_relay_output_state, subscribe_event, create_pull_point_subscription
+from datastructures.event import SubscriptionReference, SubscriptionType, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
 from datastructures.ptz import PTZPreset, parse_get_presets_response
@@ -171,6 +171,7 @@ class ObjectBrowser(App):
             reference = SubscriptionReference(
                 xaddr=subscription_reference, 
                 event=event, 
+                subscription_type=SubscriptionType.PUSH,
                 termination_time=termination_time,
                 resubscribe_timer=resubscribe_timer
             )
@@ -188,6 +189,7 @@ class ObjectBrowser(App):
         if not (fqn := node.data.get("fqn")): return
 
         #print(f"FQN: {fqn}")
+        print(f"its so annoying: {fqn}")
 
         if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
             index = int(match[1])
@@ -204,6 +206,7 @@ class ObjectBrowser(App):
                     node.parent.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (* modified)")
 
         if fqn == "capabilities.events.event_properties.topic_set" and node.label.plain.endswith("(* modified)"):
+            print(f"NODE LABEL: {node.label}")
             match event.key:
                 case 'w':
                     print(f"FOUND TOPIC SET WRITE: {len(camera.subscription_references)}")
@@ -221,14 +224,56 @@ class ObjectBrowser(App):
                     node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                     for i, child in enumerate(node.children):
                         if child.label.plain.startswith("*"):
-                            event = camera.capabilities.events.event_properties.topic_set[i]
-                            print(f"FOUND SELECTED: {event}")
-                            self.resubscribe_event(camera, event)
+                            topic = camera.capabilities.events.event_properties.topic_set[i]
+                            print(f"FOUND SELECTED: {topic}")
+                            self.resubscribe_event(camera, topic)
+                    color = "" if not len(camera.subscription_references) else "[green]"
+                    node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                case 'p':
+                    print("FOUND TOPIC SET PULL")
+                    print(f"service: {camera.capabilities.events.xaddr}")
+                    #event = node.label.plain.split(":")[1].strip()
+                    #if node.label.plain.startswith(" * "):
+                    print("unsubscribe", flush=True)
+                    for reference in camera.subscription_references:
+                        print(reference, flush=True)
+                        print(unsubscribe(camera, reference.xaddr), flush=True)
+                        
+                    camera.subscription_references.clear()
+
+                    print("subscribe", flush=True)
+                    for i, child in enumerate(node.children):
+                        if child.label.plain.startswith("*"):
+                            topic = camera.capabilities.events.event_properties.topic_set[i]
+                            print(f"TOPIC FOUND: {topic}")
+                            xml = create_pull_point_subscription(camera, topic)
+                            print(xml)
+                            address = get_xml_value(xml,
+                                ".//tev:CreatePullPointSubscriptionResponse/"
+                                "tev:SubscriptionReference/"
+                                "wsa5:Address",
+                            )
+
+                            termination_time = get_xml_value(
+                                xml,
+                                ".//tev:CreatePullPointSubscriptionResponse/"
+                                "wsnt:TerminationTime",
+                            )
+
+                            print(address)
+                            print(termination_time)
+                            reference = SubscriptionReference(
+                                xaddr=address,
+                                subscription_type=SubscriptionType.PULL,
+                                termination_time=termination_time
+                            )
+                            camera.subscription_references.append(reference)
+
                     color = "" if not len(camera.subscription_references) else "[green]"
                     node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
         if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)) and node.label.plain.endswith("(* modified)"):
-            print("FOUND MATCH")
+            print("------------------------------------------FOUND MATCH")
             index = int(match[1])
             relay_output = camera.capabilities.device_io.relay_outputs[index]
             match event.key:
@@ -632,12 +677,14 @@ class ObjectBrowser(App):
             self.debug_log.write(traceback.format_exc())
 
     def main_loop(self) -> None:
-        ...
+        #...
         #print("hello from the main loop")
-        '''
+        #'''
         for child in self.camera_tree.root.children:
-            if child.data and (camera := child.data.get("camera")):
-                for reference in camera.subscription_references:
+            if not child.data: return
+            if not (camera := child.data.get("camera")): return
+            for reference in camera.subscription_references:
+                if reference.subscription_type == SubscriptionType.PULL:
                     xml = pull_messages(camera, reference.xaddr)
                     print(f"OMG: {xml}")
                     if not (response := parse_pull_messages_response(xml)): continue
@@ -647,7 +694,7 @@ class ObjectBrowser(App):
                         print(notification.message.property_operation)
                         print(notification.message.source)
                         print(notification.message.data)
-        '''
+        #'''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

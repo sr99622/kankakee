@@ -721,10 +721,23 @@ def set_dns(camera: Camera) -> str:
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
-def create_pull_point_subscription(camera: Camera) -> str:
-    body = f"""<tev:CreatePullPointSubscription/>"""
-    #return body
+def create_pull_point_subscription(camera: Camera, event: str | None = None) -> str:
+    initial_termination_time = "PT1M"
+
+    filter_xml = ""
+    if event:
+        filter_xml = f"""
+    <tev:Filter>
+        <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
+    </tev:Filter>"""
+
+    body = f"""
+<tev:CreatePullPointSubscription>{filter_xml}
+</tev:CreatePullPointSubscription>""".strip()
+
     return onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+    #<tev:InitialTerminationTime>{initial_termination_time}</tev:InitialTerminationTime>
 
 @safe_run
 def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
@@ -738,17 +751,17 @@ def subscribe_event(camera: Camera, event: str, ip_address: str) -> str:
     initial_termination_time = "PT1M"
 
     filter = f"""
-                <wsnt:Filter>
-                    <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
-                </wsnt:Filter>"""
+    <wsnt:Filter>
+        <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
+    </wsnt:Filter>"""
 
     body = f"""
-        <wsnt:Subscribe>
-            <wsnt:ConsumerReference>
-                <wsa:Address>{callback_url}</wsa:Address>
-            </wsnt:ConsumerReference>{filter}
-            <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
-        </wsnt:Subscribe>""".strip()
+<wsnt:Subscribe>
+    <wsnt:ConsumerReference>
+        <wsa:Address>{callback_url}</wsa:Address>
+    </wsnt:ConsumerReference>{filter}
+    <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
+</wsnt:Subscribe>""".strip()
 
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml
@@ -760,17 +773,17 @@ def subscribe_events(camera: Camera, events: list[str], ip_address: str) -> str:
 
     topic_expression = " | ".join(f"tns1:{item}" for item in events)
     filter = f"""
-                <wsnt:Filter>
-                    <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">{topic_expression}</wsnt:TopicExpression>
-                </wsnt:Filter>"""
+    <wsnt:Filter>
+        <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">{topic_expression}</wsnt:TopicExpression>
+    </wsnt:Filter>"""
 
     body = f"""
-        <wsnt:Subscribe>
-            <wsnt:ConsumerReference>
-                <wsa:Address>{callback_url}</wsa:Address>
-            </wsnt:ConsumerReference>{filter}
-            <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
-        </wsnt:Subscribe>""".strip()
+<wsnt:Subscribe>
+    <wsnt:ConsumerReference>
+        <wsa:Address>{callback_url}</wsa:Address>
+    </wsnt:ConsumerReference>{filter}
+    <wsnt:InitialTerminationTime>{initial_termination_time}</wsnt:InitialTerminationTime>
+</wsnt:Subscribe>""".strip()
 
     xml = onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
     return xml

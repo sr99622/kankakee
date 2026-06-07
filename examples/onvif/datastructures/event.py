@@ -4,10 +4,15 @@ from dataclasses import dataclass, field
 from textual.timer import Timer
 from typing import Optional
 from lxml import etree
+from enum import Enum
 from utils.xml import int_attr, attr, text_list, bool_attr, text, NS
 
 WSTOP_NS = "http://docs.oasis-open.org/wsn/t-1"
 WSTOP_TOPIC_ATTR = f"{{{WSTOP_NS}}}topic"
+
+class SubscriptionType(Enum):
+    PULL = 0
+    PUSH = 1
 
 @dataclass
 class SimpleItem:
@@ -52,6 +57,7 @@ class TopicNamespaceLocation:
 class SubscriptionReference:
     xaddr: Optional[str] = None
     event: Optional[str] = None
+    subscription_type: Optional[SubscriptionType] = None
     termination_time: Optional[str] = None
     resubscribe_timer: Optional[Timer] = None
 
