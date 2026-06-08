@@ -219,21 +219,30 @@ class ObjectBrowser(App):
                         child.set_label(f"[{i}]: {topic}")
                     node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                 case 'R':
-                    if node.label.plain.endswith("(* modified)"):
-                        return
                     self.unsubscribe_events(camera)
-                    
+                    self.resubscribe_event(camera)
+                    node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (receive ALL)")
                 case 'r':
                     if node.label.plain.endswith("(* modified)"):
                         self.unsubscribe_events(camera)
-                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
                         for i, child in enumerate(node.children):
                             if child.label.plain.startswith("*"):
                                 topic = camera.capabilities.events.event_properties.topic_set[i]
                                 self.resubscribe_event(camera, topic)
-                        #color = "" if not len(camera.subscription_references) else "[green]"
                         status = "" if not len(camera.subscription_references) else " (receive)"
                         node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]{status}")
+                case 'P':
+                    self.unsubscribe_events(camera)
+                    xml = create_pull_point_subscription(camera)
+                    address = get_xml_value(xml, ".//tev:CreatePullPointSubscriptionResponse/tev:SubscriptionReference/wsa5:Address")
+                    termination_time = get_xml_value(xml, ".//tev:CreatePullPointSubscriptionResponse/wsnt:TerminationTime")
+                    reference = SubscriptionReference(
+                        xaddr=address,
+                        subscription_type=SubscriptionType.PULL,
+                        termination_time=termination_time
+                    )
+                    camera.subscription_references.append(reference)
+                    node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (pull ALL)")
                 case 'p':
                     if node.label.plain.endswith("(* modified)"):
                         self.unsubscribe_events(camera)
@@ -249,7 +258,6 @@ class ObjectBrowser(App):
                                     termination_time=termination_time
                                 )
                                 camera.subscription_references.append(reference)
-                        #color = "" if not len(camera.subscription_references) else "[blue]"
                         status = "" if not len(camera.subscription_references) else " (pull)"
                         node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]{status}")
 
