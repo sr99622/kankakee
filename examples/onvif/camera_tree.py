@@ -53,71 +53,7 @@ class CameraTree(Tree):
     BINDINGS = [
         ("]", "toggle_recursive", "Branch"),
         ("r", "reboot", "Reboot"),
-        ("v", "event", "Event"),
-        ("u", "pull", "Pull"),
     ]
-
-
-    def action_event(self) -> None:
-        if node := self.cursor_node:
-            if node.parent.label.plain.startswith("topic_set:"):
-                camera = node.data["camera"]
-                event = node.label.plain.split(":")[1].strip()
-                if node.label.plain.startswith(" * "):
-                    print("--------------------unsubscribe", flush=True)
-                    if reference := self.app.get_reference_for_event(camera):
-                        reference.resubscribe_timer.stop()
-                        self.app.debug_log.write(reference.xaddr)
-                        self.app.debug_log.write(unsubscribe(camera, reference.xaddr))
-                        camera.subscription_references.remove(reference)
-                        if not len(camera.subscription_references) and self.app.httpd:
-                            self.app.httpd.shutdown()
-                            self.app.httpd = None
-                    else:
-                        print("Here we go again")
-                    label = node.label.plain[3:]
-                else:
-                    self.app.resubscribe_event(camera, event)
-                    label = f" * {node.label}"
-                node.set_label(label)
-
-    def action_pull(self) -> None:
-        print("ACTION PULL")
-        if not (node := self.cursor_node): return
-        if not node.data: return
-        if not (camera := node.data.get("camera")): return
-        print(f"service: {camera.capabilities.events.xaddr}")
-        event = node.label.plain.split(":")[1].strip()
-        if node.label.plain.startswith(" * "):
-            print("unsubscribe", flush=True)
-            node.set_label(node.label.plain[3:])
-            for reference in camera.subscription_references:
-                print(reference, flush=True)
-                print(unsubscribe(camera, reference.xaddr), flush=True)
-                camera.subscription_references.remove(reference)
-        else:
-            print("subscribe", flush=True)
-            xml = create_pull_point_subscription(camera)
-            print(xml)
-            address = get_xml_value(xml,
-                ".//tev:CreatePullPointSubscriptionResponse/"
-                "tev:SubscriptionReference/"
-                "wsa5:Address",
-            )
-
-            termination_time = get_xml_value(
-                xml,
-                ".//tev:CreatePullPointSubscriptionResponse/"
-                "wsnt:TerminationTime",
-            )
-
-            print(address)
-            print(termination_time)
-            #xaddr = get_xml_value("//s:Body", xml)
-            #print(f"XADDR: {xaddr}")
-            camera.subscription_references.append(SubscriptionReference(xaddr=address, termination_time=termination_time))
-
-            node.set_label(f" * {node.label}")
 
     def get_fqn(self, node: TreeNode) -> str:
         parts = []

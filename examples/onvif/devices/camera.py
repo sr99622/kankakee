@@ -748,14 +748,16 @@ def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
 
 
 @safe_run
-def subscribe_event(camera: Camera, event: str, ip_address: str) -> str:
+def subscribe_event(camera: Camera, ip_address: str, event: str | None = None) -> str:
     callback_url = f"http://{ip_address}:8800/onvif/events"
     initial_termination_time = "PT1M"
 
-    filter = f"""
-    <wsnt:Filter>
-        <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
-    </wsnt:Filter>"""
+    filter = ""
+    if event:
+        filter = f"""
+        <wsnt:Filter>
+            <wsnt:TopicExpression Dialect="http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet">tns1:{event}</wsnt:TopicExpression>
+        </wsnt:Filter>"""
 
     body = f"""
 <wsnt:Subscribe>
@@ -855,10 +857,7 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 for output in camera.capabilities.device_io.relay_outputs:
                     get_relay_output_options(camera, output)
             if camera.capabilities.device_io.audio_outputs:
-                print(f"CAMERA HAS AUDIO OUTPUT: {name}")
                 get_audio_decoder_configurations(camera)
-            else:
-                print(f"CAMERA DOES NOT HAVE AUDIO OUTPUT: {name}")
 
     except Exception as ex:
         print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")

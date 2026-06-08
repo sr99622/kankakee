@@ -121,7 +121,13 @@ class ObjectBrowser(App):
     #        #if reference.event == event:
     #        if ip_obj == ref_obj:
     #            references.append(reference)
- 
+
+    def unsubscribe_events(self, camera: Camera):
+        for reference in camera.subscription_references:
+            if reference.resubscribe_timer: reference.resubscribe_timer.stop()
+            print(unsubscribe(camera, reference.xaddr))
+        camera.subscription_references.clear()
+
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
         return self.set_timer(
             max(1.0, delay),
@@ -131,7 +137,7 @@ class ObjectBrowser(App):
             ),
         )
  
-    def resubscribe_event(self, camera: Camera, event: str) -> None:
+    def resubscribe_event(self, camera: Camera, event: str | None = None) -> None:
         try:
             print("resubscribe_event")
 
@@ -156,7 +162,7 @@ class ObjectBrowser(App):
                 ip_address = self.find_local_subnet_matches(ip_obj)
             print(f"event listener address: {ip_address}")
 
-            xml = subscribe_event(camera, event, ip_address)
+            xml = subscribe_event(camera, ip_address, event)
             print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
@@ -204,96 +210,67 @@ class ObjectBrowser(App):
                         node.set_label(f"* [{index}]: {topic}")
                     node.parent.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}] (* modified)")
 
-        if fqn == "capabilities.events.event_properties.topic_set" and node.label.plain.endswith("(* modified)"):
-            print(f"NODE LABEL: {node.label}")
+        if fqn == "capabilities.events.event_properties.topic_set": 
             match event.key:
-                case 'w':
-                    print(f"FOUND TOPIC SET WRITE: {len(camera.subscription_references)}")
-                    #if reference := self.app.get_reference_for_event(camera):
-                    for reference in camera.subscription_references:
-                        print("FOUND EXISTING REFERENCE")
-                        reference.resubscribe_timer.stop()
-                        print(f"removing reference: {reference.xaddr}")
-                        print(unsubscribe(camera, reference.xaddr))
-                        #camera.subscription_references.remove(reference)
-                        #if not len(camera.subscription_references) and self.app.httpd:
-                        #    self.app.httpd.shutdown()
-                        #    self.app.httpd = None
-                    camera.subscription_references.clear()
+                case 'u':
+                    self.unsubscribe_events(camera)
+                    for i, child in enumerate(node.children):
+                        topic = camera.capabilities.events.event_properties.topic_set[i]
+                        child.set_label(f"[{i}]: {topic}")
                     node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
-                    for i, child in enumerate(node.children):
-                        if child.label.plain.startswith("*"):
-                            topic = camera.capabilities.events.event_properties.topic_set[i]
-                            print(f"FOUND SELECTED: {topic}")
-                            self.resubscribe_event(camera, topic)
-                    color = "" if not len(camera.subscription_references) else "[green]"
-                    node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                case 'R':
+                    if node.label.plain.endswith("(* modified)"):
+                        return
+                    self.unsubscribe_events(camera)
+                    
+                case 'r':
+                    if node.label.plain.endswith("(* modified)"):
+                        self.unsubscribe_events(camera)
+                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
+                        for i, child in enumerate(node.children):
+                            if child.label.plain.startswith("*"):
+                                topic = camera.capabilities.events.event_properties.topic_set[i]
+                                self.resubscribe_event(camera, topic)
+                        #color = "" if not len(camera.subscription_references) else "[green]"
+                        status = "" if not len(camera.subscription_references) else " (receive)"
+                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]{status}")
                 case 'p':
-                    print("FOUND TOPIC SET PULL")
-                    print(f"service: {camera.capabilities.events.xaddr}")
-                    #event = node.label.plain.split(":")[1].strip()
-                    #if node.label.plain.startswith(" * "):
-                    print("unsubscribe", flush=True)
-                    for reference in camera.subscription_references:
-                        print(reference, flush=True)
-                        print(unsubscribe(camera, reference.xaddr), flush=True)
-                        
-                    camera.subscription_references.clear()
+                    if node.label.plain.endswith("(* modified)"):
+                        self.unsubscribe_events(camera)
+                        for i, child in enumerate(node.children):
+                            if child.label.plain.startswith("*"):
+                                topic = camera.capabilities.events.event_properties.topic_set[i]
+                                xml = create_pull_point_subscription(camera, topic)
+                                address = get_xml_value(xml, ".//tev:CreatePullPointSubscriptionResponse/tev:SubscriptionReference/wsa5:Address")
+                                termination_time = get_xml_value(xml, ".//tev:CreatePullPointSubscriptionResponse/wsnt:TerminationTime")
+                                reference = SubscriptionReference(
+                                    xaddr=address,
+                                    subscription_type=SubscriptionType.PULL,
+                                    termination_time=termination_time
+                                )
+                                camera.subscription_references.append(reference)
+                        #color = "" if not len(camera.subscription_references) else "[blue]"
+                        status = "" if not len(camera.subscription_references) else " (pull)"
+                        node.set_label(f"topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]{status}")
 
-                    print("subscribe", flush=True)
-                    for i, child in enumerate(node.children):
-                        if child.label.plain.startswith("*"):
-                            topic = camera.capabilities.events.event_properties.topic_set[i]
-                            print(f"TOPIC FOUND: {topic}")
-                            xml = create_pull_point_subscription(camera, topic)
-                            print(xml)
-                            address = get_xml_value(xml,
-                                ".//tev:CreatePullPointSubscriptionResponse/"
-                                "tev:SubscriptionReference/"
-                                "wsa5:Address",
-                            )
-
-                            termination_time = get_xml_value(
-                                xml,
-                                ".//tev:CreatePullPointSubscriptionResponse/"
-                                "wsnt:TerminationTime",
-                            )
-
-                            print(address)
-                            print(termination_time)
-                            reference = SubscriptionReference(
-                                xaddr=address,
-                                subscription_type=SubscriptionType.PULL,
-                                termination_time=termination_time
-                            )
-                            camera.subscription_references.append(reference)
-
-                    color = "" if not len(camera.subscription_references) else "[green]"
-                    node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
-
-        if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)): # and node.label.plain.endswith("(* modified)"):
-            print("------------------------------------------FOUND MATCH")
+        if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)): # and 
             index = int(match[1])
             relay_output = camera.capabilities.device_io.relay_outputs[index]
             match event.key:
                 case 'w':
                     try:
-                        print("got w key")
-                        # set_relay_output_settings
-                        print(relay_output.token)
-                        print(set_relay_output_settings(camera, relay_output))
-                        node.set_label(f"[{index}]")
+                        if node.label.plain.endswith("(* modified)"):
+                            print(set_relay_output_settings(camera, relay_output))
+                            node.set_label(f"[{index}]")
                     except Exception as ex:
                         print(f"set relay output settings error: {ex}")
                 case 'a':
                     try:
-                        print("got a key")
                         print(set_relay_output_state(camera, relay_output, "active"))
                     except Exception as ex:
                         print(f"set relay output error: {ex}")
                 case 'i':
                     try:
-                        print("got i key")
                         print(set_relay_output_state(camera, relay_output, "inactive"))
                     except Exception as ex:
                         print(f"set relay output error: {ex}")
