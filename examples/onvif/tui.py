@@ -104,24 +104,6 @@ class ObjectBrowser(App):
                     except ValueError:
                         continue
 
-    def get_reference_for_event(self, camera: Camera, event: str) -> SubscriptionReference:
-        for reference in camera.subscription_references:
-            if reference.event == event:
-                return reference
-
-    #def get_references_for_camera(self, camera: Camera) -> list[SubscriptionReference]:
-    #    references = []
-    #    print(f"GET REFERENCE FOR EVENT: {camera.xaddr}")
-    #    ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
-    #    print(f"HOSTNAME: {ip_obj}")
-    #    for reference in camera.subscription_references:
-    #        print(f"REFERENCE: {reference}")
-    #        ref_obj = ipaddress.ip_address(urlparse(reference.xaddr).hostname)
-    #        print(f"REF OBJ: {ref_obj}")
-    #        #if reference.event == event:
-    #        if ip_obj == ref_obj:
-    #            references.append(reference)
-
     def unsubscribe_events(self, camera: Camera):
         for reference in camera.subscription_references:
             if reference.resubscribe_timer: reference.resubscribe_timer.stop()
@@ -139,37 +121,22 @@ class ObjectBrowser(App):
  
     def resubscribe_event(self, camera: Camera, event: str | None = None) -> None:
         try:
-            print("resubscribe_event")
-
-
-            #'''
-            if self.httpd:
-                print("HAVE HTTPD")
-            else:
+            if not self.httpd:
                 print("starting http worker thread")
                 self.run_worker(self.http_server_worker, thread=True)
 
-            if reference := self.get_reference_for_event(camera, event):
-                camera.subscription_references.remove(reference)
-                self.call_from_thread(self.debug_log.write, "RESUBSCRIBE EVENT")
-
-            print(f"self.ip_address: {self.ip_address}")
-            print(f"events under consideration: {events}")
             ip_obj = ipaddress.ip_address(urlparse(camera.xaddr).hostname)
-            print(f"camera ip: {ip_obj}")
             ip_address = self.ip_address
             if ip_address == "0.0.0.0":
                 ip_address = self.find_local_subnet_matches(ip_obj)
-            print(f"event listener address: {ip_address}")
 
             xml = subscribe_event(camera, ip_address, event)
-            print(xml, flush=True)
             subscription_reference = get_xml_value(xml, "//s:Body//wsnt:SubscribeResponse//wsnt:SubscriptionReference//wsa:Address")
             termination_time = get_xml_value(xml, "//s:Body//wsnt:TerminationTime")
             dt = datetime.fromisoformat(termination_time.replace("Z", "+00:00"))
             delay = (dt - datetime.now(timezone.utc)).total_seconds() - camera.time_offset - RESUBSCRIBE_MARGIN_SECONDS
 
-            if reference is None:
+            if not (len(camera.subscription_references)):
                 resubscribe_timer = self.schedule_resubscribe_event(camera, event, delay)
             else:
                 resubscribe_timer = self.call_from_thread(self.schedule_resubscribe_event, camera, event, delay)
@@ -183,7 +150,7 @@ class ObjectBrowser(App):
             )
 
             camera.subscription_references.append(reference)
-            #'''
+
         except Exception as ex:
             print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
  
@@ -192,6 +159,16 @@ class ObjectBrowser(App):
         if not node.data: return
         if not (camera := node.data.get("camera")): return
         profile_token = camera.profiles[0].token
+
+        if node.label.plain == camera.name and event.key == 'r':
+            try:
+                xml = reboot(camera)
+                msg = get_xml_value(xml, "//s:Body//tds:SystemRebootResponse//tds:Message")
+                self.app.debug_log.write(f"{camera.name}: {msg}")
+            except Exception as ex:
+                self.app.debug_log.write(f"{ex}")
+            return
+
         if not (fqn := node.data.get("fqn")): return
 
         #print(f"FQN: {fqn}")

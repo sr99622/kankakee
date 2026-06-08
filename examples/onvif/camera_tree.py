@@ -30,30 +30,10 @@ import re
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
 
-class ConfirmRebootScreen(ModalScreen[bool]):
-    def __init__(self, camera_name: str) -> None:
-        super().__init__()
-        self.camera_name = camera_name
-
-    def compose(self):
-        with Vertical(id="confirm_dialog"):
-            yield Label(f"Reboot camera '{self.camera_name}'?")
-            yield Button("Cancel", id="cancel", variant="primary")
-            yield Button("Reboot", id="reboot", variant="error")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "reboot")
-
-
 class CameraTree(Tree):
     def __init__(self) -> None:
         super().__init__("Cameras")
         self.show_root = True
-
-    BINDINGS = [
-        ("]", "toggle_recursive", "Branch"),
-        ("r", "reboot", "Reboot"),
-    ]
 
     def get_fqn(self, node: TreeNode) -> str:
         parts = []
@@ -70,18 +50,19 @@ class CameraTree(Tree):
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         if not event.node.data: return
+
+        if camera := event.node.data.get("camera"):
+            if event.node.label.plain == camera.name:
+                self.app.debug_log.clear()
+                self.app.debug_log.write("The camera can be rebooted using the 'r' key")
+
         if not (fqn := event.node.data.get("fqn")): return
 
         sfqn = re.sub(r"\[\d+\]", "[*]", fqn)
-        
         self.app.debug_log.clear()
         self.app.debug_log.write(fqn)
         if desc := field_descriptions.get(sfqn):
             self.app.debug_log.write(desc)
-        #if fqn.startswith("capabilities.ptz.presets.["):
-        #if re.fullmatch(r"capabilities\.ptz\.presets\.\[\d+\]", fqn):
-        #    self.app.debug_log.write("To assign the current postion to this preset\nuse the 'p' key")
-
 
     def _make_editable_label(self, field: str, value: str) -> Text:
         label = Text()
@@ -89,49 +70,6 @@ class CameraTree(Tree):
         label.append(f"{field}: ")
         label.append(str(value))
         return label
-
-    def action_reboot(self) -> None:
-        if node := self.cursor_node:
-            if node.parent.parent is None:
-                if not node.data:
-                    self.app.debug_log.write(f"Error: missing node data for camera")
-                    return
-
-                camera = node.data["camera"]
-                self.app.push_screen(
-                    ConfirmRebootScreen(camera.name),
-                    lambda confirmed: self._do_reboot(camera) if confirmed else None,
-                )
-
-            else:
-                self.app.debug_log.write(f"Reboot action can only be performed when a camera node is selected")
-
-    def _do_reboot(self, camera: Camera) -> None:
-        try:
-            xml = reboot(camera)
-            msg = get_xml_value(xml, "//s:Body//tds:SystemRebootResponse//tds:Message")
-            self.app.debug_log.write(f"{camera.name}: {msg}")
-        except Exception as ex:
-            self.app.debug_log.write(f"{ex}")
-
-    def action_toggle_recursive(self) -> None:
-        node = self.cursor_node
-        if node is None:
-            return
-        if node.is_expanded:
-            self._collapse_recursive(node)
-        else:
-            self._expand_recursive(node)
-
-    def _expand_recursive(self, node: TreeNode) -> None:
-        node.expand()
-        for child in node.children:
-            self._expand_recursive(child)
-
-    def _collapse_recursive(self, node: TreeNode) -> None:
-        for child in node.children:
-            self._collapse_recursive(child)
-        node.collapse()
 
     def add_camera(self, camera: Camera) -> None:
         label = camera.name
