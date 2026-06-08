@@ -252,6 +252,7 @@ def get_audio_encoder_configuration_options(camera: Camera, profile: Profile) ->
 def get_network_interfaces(camera: Camera) -> None:
     body = "<tds:GetNetworkInterfaces/>"
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
+    #print(f"GET NETWORK INTERFACES: {xml}")
     setattr(camera,  "network_interfaces", parse_network_interfaces_response(xml))
 
 @safe_run
@@ -293,7 +294,7 @@ def get_audio_decoder_configurations(camera: Camera) -> None:
         xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
         setattr(camera, "audio_outputs", parse_audio_output_configurations_response(xml))
     except Exception as ex:
-        print(f"get audio decoder configurations error: {ex}")
+        print(f"get audio output configurations error: {ex}")
 
 @safe_run
 def get_event_service_capabilities(camera: Camera) -> None:
@@ -502,12 +503,13 @@ def move_stop(camera: Camera, profile_token: str, is_zoom: bool=False) -> str:
 def set_relay_output_settings(camera: Camera, relay_output: RelayOutput) -> str:
     body = f"""
 <tmd:SetRelayOutputSettings>
-    <tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken>
-    <tmd:Properties>
-        <tt:Mode>{relay_output.properties.mode}</tt:Mode>
-        <tt:DelayTime>{relay_output.properties.delay_time}</tt:DelayTime>
-        <tt:IdleState>{relay_output.properties.idle_state}</tt:IdleState>
-    </tmd:Properties>
+    <tmd:RelayOutput token='{relay_output.token}'>
+        <tt:Properties>
+            <tt:Mode>{relay_output.properties.mode}</tt:Mode>
+            <tt:DelayTime>{relay_output.properties.delay_time}</tt:DelayTime>
+            <tt:IdleState>{relay_output.properties.idle_state}</tt:IdleState>
+        </tt:Properties>
+    </tmd:RelayOutput>
 </tmd:SetRelayOutputSettings>""".strip()
 
     return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
@@ -853,7 +855,10 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 for output in camera.capabilities.device_io.relay_outputs:
                     get_relay_output_options(camera, output)
             if camera.capabilities.device_io.audio_outputs:
+                print(f"CAMERA HAS AUDIO OUTPUT: {name}")
                 get_audio_decoder_configurations(camera)
+            else:
+                print(f"CAMERA DOES NOT HAVE AUDIO OUTPUT: {name}")
 
     except Exception as ex:
         print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")

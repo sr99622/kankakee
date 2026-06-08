@@ -189,7 +189,6 @@ class ObjectBrowser(App):
         if not (fqn := node.data.get("fqn")): return
 
         #print(f"FQN: {fqn}")
-        print(f"its so annoying: {fqn}")
 
         if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
             index = int(match[1])
@@ -272,7 +271,7 @@ class ObjectBrowser(App):
                     color = "" if not len(camera.subscription_references) else "[green]"
                     node.set_label(f"{color}topic_set: [{len(camera.capabilities.events.event_properties.topic_set)}]")
 
-        if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)) and node.label.plain.endswith("(* modified)"):
+        if (match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", fqn)): # and node.label.plain.endswith("(* modified)"):
             print("------------------------------------------FOUND MATCH")
             index = int(match[1])
             relay_output = camera.capabilities.device_io.relay_outputs[index]
