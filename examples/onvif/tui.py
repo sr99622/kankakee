@@ -12,14 +12,18 @@ from dataclasses import is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
 from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn_owner, \
-        convert_string_value, join_fqn, is_editable_field, normalize_fqn, ptz_screen
+        convert_string_value, join_fqn, is_editable_field, normalize_fqn, ptz_screen, \
+        analyze_field_type
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
         unsubscribe, get_status, continuous_move, move_stop, get_presets, set_preset, \
         remove_preset, goto_preset, operate_preset_tour, remove_preset_tour, create_preset_tour, \
         get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages, \
-        set_relay_output_settings, set_relay_output_state, subscribe_event, create_pull_point_subscription
+        set_relay_output_settings, set_relay_output_state, subscribe_event, \
+        get_local_date_and_time, set_system_date_and_time, create_pull_point_subscription, \
+        get_time_offset, set_system_date_and_time_parameters, get_local_date_and_time_as_utc, \
+        set_timezone
 from datastructures.event import SubscriptionReference, SubscriptionType, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
@@ -153,7 +157,28 @@ class ObjectBrowser(App):
 
         except Exception as ex:
             print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
- 
+
+    def show_system_date_and_time(self, camera: Camera) -> None:
+        c = camera.system_date_and_time
+        u = c.utc_date_time
+        l = c.local_date_time
+
+        local = ""
+        if l:
+            local = f"local date time: {l.date.year}-{l.date.month:02}-{l.date.day:02} {l.time.hour:02}:{l.time.minute:02}:{l.time.second:02}"
+
+
+        time_str = f"""
+Camera Time:
+
+time zone: {c.time_zone.tz} 
+daylight savings: {c.daylight_savings}
+date time type: {c.date_time_type}
+utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:{u.time.minute:02}:{u.time.second:02} 
+{local} 
+"""
+        self.debug_log.write(time_str)
+
     def on_key(self, event: events.Key) -> None:
         node = self.camera_tree.cursor_node
         if not node.data: return
@@ -172,6 +197,58 @@ class ObjectBrowser(App):
         if not (fqn := node.data.get("fqn")): return
 
         #print(f"FQN: {fqn}")
+
+        if fqn == 'system_date_and_time':
+            match event.key:
+                case 'u':
+                    try:
+                        set_system_date_and_time(camera, get_local_date_and_time_as_utc())
+                        get_time_offset(camera)
+                        self.show_system_date_and_time(camera)
+                    except Exception as ex:
+                        print(f"error: {ex}")
+                case 't':
+                    try:
+                        get_time_offset(camera)
+                        self.show_system_date_and_time(camera)
+                    except Exception as ex:
+                        print(f"error: {ex}")
+                case 's':
+                    try:
+                        self.debug_log.write("synchronizing camera time to computer time ...")
+                        set_system_date_and_time(camera, get_local_date_and_time())
+                        get_time_offset(camera)
+                        self.show_system_date_and_time(camera)
+                    except Exception as ex:
+                        print(f"error: {ex}")
+                case 'w':
+                    if node.label.plain.endswith("(* modified)"):
+                        try:
+                            print("FOUND MODIFIED TAG")
+                            print(set_system_date_and_time_parameters(camera))
+                            get_time_offset(camera)
+                            self.show_system_date_and_time(camera)
+                            node.remove_children()
+                            self.camera_tree._add_value(node, "date_time_type", camera.system_date_and_time.date_time_type, camera)
+                            self.camera_tree._add_value(node, "daylight_savings", camera.system_date_and_time.daylight_savings, camera)
+                            self.camera_tree._add_value(node, "time_zone", camera.system_date_and_time.time_zone, camera)
+                            self.camera_tree._add_value(node, "utc_date_time", camera.system_date_and_time.utc_date_time, camera)
+                            self.camera_tree._add_value(node, "local_date_time", camera.system_date_and_time.local_date_time, camera)
+                            node.expand()
+                            node.set_label("system_date_and_time")
+                        except Exception as ex:
+                            print(f"error: {ex}")
+                case 'z':
+                    if node.label.plain.endswith("(* modified)"):
+                        try:
+                            print("FOUND MODIFIED TAG")
+                            print(set_timezone(camera))
+                            get_time_offset(camera)
+                            self.show_system_date_and_time(camera)
+                            node.set_label("system_date_and_time")
+                        except Exception as ex:
+                            print(f"error: {ex}")
+
 
         if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
             index = int(match[1])
@@ -377,6 +454,7 @@ class ObjectBrowser(App):
                         print(modify_preset_tour(camera, profile_token, preset_tour))
                         node.set_label(f"[{tour_index}]")
 
+
         if fqn == "capabilities.ptz.xaddr":
             self.debug_log.clear()
             self.debug_log.write(ptz_screen)
@@ -507,6 +585,13 @@ class ObjectBrowser(App):
                     if match := re.fullmatch(r"capabilities\.device_io\.relay_outputs\.\[(\d+)\]", data["fqn"]):
                         index = int(match[1])
                         parent.set_label(f"[{index}] (* modified)")
+            elif fqn.startswith("system_date_and_time"):
+                print(f"FOUND SYSTEM DATE AND TIME: {self.editing_node}")
+                search_node = self.editing_node
+                while search_node.parent.label.plain != "system_date_and_time":
+                    print(f"search node label: {search_node.label}")
+                    search_node = search_node.parent
+                search_node.parent.set_label("system_date_and_time (* modified)")
 
             self.debug_log.write(msg)
         except Exception as ex:
@@ -534,6 +619,8 @@ class ObjectBrowser(App):
         camera = node.data["camera"]
         owner, field_name, field_type, indices = resolve_fqn_owner(camera, fqn)
         self.debug_log.write(f"FIELD TYPE: {field_type}")
+        base_type, is_optional, is_list = analyze_field_type(field_type)
+        default_value = "False" if base_type is bool else ""
 
         self.editing_node = node
         self.editing_camera = camera
@@ -541,7 +628,8 @@ class ObjectBrowser(App):
         self.editing_field = field_name
         self.editing_field_type = field_type
         self.editing_indicies = indices
-        self.edit_input.value = str(getattr(owner, field_name) or "")
+
+        self.edit_input.value = str(getattr(owner, field_name) or default_value)
         self.edit_input.remove_class("hidden")
         self.set_focus(self.edit_input)
 
