@@ -48,6 +48,36 @@ class CameraTree(Tree):
             current = parent
         return ".".join(reversed(parts))
 
+    def capture_expanded_nodes(self, node) -> set[str]:
+        expanded: set[str] = set()
+
+        def walk(n):
+            data = n.data or {}
+            fqn = data.get("fqn")
+
+            if fqn and n.is_expanded:
+                expanded.add(fqn)
+
+            for child in n.children:
+                walk(child)
+
+        walk(node)
+        return expanded
+
+    def restore_expanded_nodes(self, node, expanded: set[str]) -> None:
+        def walk(n):
+            data = n.data or {}
+            fqn = data.get("fqn")
+
+            if fqn in expanded:
+                n.allow_expand = True
+                n.expand()
+
+            for child in n.children:
+                walk(child)
+
+        walk(node)
+
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         if not event.node.data: return
 
@@ -81,7 +111,7 @@ class CameraTree(Tree):
         if len(self.root.children) == 1:
             self.root.expand()
 
-    def _add_value(self, parent: TreeNode, name: str, value: object, camera: Camera) -> None:
+    def _add_value(self, parent: TreeNode, name: str, value: object, camera: Camera) -> TreeNode | None:
 
         fqn = join_fqn(self.get_fqn(parent), name)
 
@@ -130,4 +160,4 @@ class CameraTree(Tree):
             node = parent.add_leaf(f"{name}: {value}")
             node.data = {"camera": camera, "field": name, "fqn": fqn}
 
-
+        return node

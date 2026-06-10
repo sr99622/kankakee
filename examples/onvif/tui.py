@@ -22,8 +22,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages, \
         set_relay_output_settings, set_relay_output_state, subscribe_event, \
         get_local_date_and_time, set_system_date_and_time, create_pull_point_subscription, \
-        get_time_offset, set_system_date_and_time_parameters, get_local_date_and_time_as_utc, \
-        set_timezone
+        get_time_offset, get_local_date_and_time_as_utc
 from datastructures.event import SubscriptionReference, SubscriptionType, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
@@ -158,6 +157,18 @@ class ObjectBrowser(App):
         except Exception as ex:
             print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
 
+    def update_tree_time(self, camera: Camera, node: TreeNode) -> None:
+        expanded = self.camera_tree.capture_expanded_nodes(node)
+        print(expanded)
+        node.remove_children()
+        self.camera_tree._add_value(node, "date_time_type", camera.system_date_and_time.date_time_type, camera)
+        self.camera_tree._add_value(node, "daylight_savings", camera.system_date_and_time.daylight_savings, camera)
+        self.camera_tree._add_value(node, "time_zone", camera.system_date_and_time.time_zone, camera)
+        self.camera_tree._add_value(node, "utc_date_time", camera.system_date_and_time.utc_date_time, camera)
+        self.camera_tree._add_value(node, "local_date_time", camera.system_date_and_time.local_date_time, camera)
+        #node.expand()
+        self.camera_tree.restore_expanded_nodes(node, expanded)
+
     def show_system_date_and_time(self, camera: Camera) -> None:
         c = camera.system_date_and_time
         u = c.utc_date_time
@@ -205,12 +216,14 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                         set_system_date_and_time(camera, get_local_date_and_time_as_utc())
                         get_time_offset(camera)
                         self.show_system_date_and_time(camera)
+                        self.update_tree_time(camera, node)
                     except Exception as ex:
                         print(f"error: {ex}")
                 case 't':
                     try:
                         get_time_offset(camera)
                         self.show_system_date_and_time(camera)
+                        self.update_tree_time(camera, node)
                     except Exception as ex:
                         print(f"error: {ex}")
                 case 's':
@@ -219,22 +232,22 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                         set_system_date_and_time(camera, get_local_date_and_time())
                         get_time_offset(camera)
                         self.show_system_date_and_time(camera)
+                        self.update_tree_time(camera, node)
                     except Exception as ex:
                         print(f"error: {ex}")
                 case 'w':
                     if node.label.plain.endswith("(* modified)"):
                         try:
-                            print("FOUND MODIFIED TAG")
-                            print(set_system_date_and_time_parameters(camera))
+                            print("FOUND MODIFIED TAG USING w COMMAND")
+                            sdt = get_local_date_and_time()
+                            sdt.date_time_type = camera.system_date_and_time.date_time_type
+                            sdt.daylight_savings = camera.system_date_and_time.daylight_savings
+                            sdt.time_zone.tz = camera.system_date_and_time.time_zone.tz
+                            #print(set_system_date_and_time_parameters(camera))
+                            print(set_system_date_and_time(camera, sdt))
                             get_time_offset(camera)
                             self.show_system_date_and_time(camera)
-                            node.remove_children()
-                            self.camera_tree._add_value(node, "date_time_type", camera.system_date_and_time.date_time_type, camera)
-                            self.camera_tree._add_value(node, "daylight_savings", camera.system_date_and_time.daylight_savings, camera)
-                            self.camera_tree._add_value(node, "time_zone", camera.system_date_and_time.time_zone, camera)
-                            self.camera_tree._add_value(node, "utc_date_time", camera.system_date_and_time.utc_date_time, camera)
-                            self.camera_tree._add_value(node, "local_date_time", camera.system_date_and_time.local_date_time, camera)
-                            node.expand()
+                            self.update_tree_time(camera, node)
                             node.set_label("system_date_and_time")
                         except Exception as ex:
                             print(f"error: {ex}")
@@ -245,6 +258,7 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             print(set_timezone(camera))
                             get_time_offset(camera)
                             self.show_system_date_and_time(camera)
+                            self.update_tree_time(camera, node)
                             node.set_label("system_date_and_time")
                         except Exception as ex:
                             print(f"error: {ex}")
@@ -586,9 +600,9 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                         index = int(match[1])
                         parent.set_label(f"[{index}] (* modified)")
             elif fqn.startswith("system_date_and_time"):
-                print(f"FOUND SYSTEM DATE AND TIME: {self.editing_node}")
+                print(f"FOUND SYSTEM DATE AND TIME")
                 search_node = self.editing_node
-                while search_node.parent.label.plain != "system_date_and_time":
+                while search_node.parent.label.plain != "system_date_and_time" and search_node.parent.label.plain != "system_date_and_time (* modified)":
                     print(f"search node label: {search_node.label}")
                     search_node = search_node.parent
                 search_node.parent.set_label("system_date_and_time (* modified)")

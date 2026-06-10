@@ -166,10 +166,10 @@ def get_local_date_and_time_as_utc() -> SystemDateAndTime:
 def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
     body = f"""
 <tds:SetSystemDateAndTime>
-    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
-    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
-    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
-    <tds:UTCDateTime>
+    <tt:DateTimeType>{sdt.date_time_type}</tt:DateTimeType>
+    <tt:DaylightSavings>{str(sdt.daylight_savings).lower()}</tt:DaylightSavings>
+    <tt:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tt:TimeZone>
+    <tt:UTCDateTime>
         <tt:Time>
             <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
             <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
@@ -180,65 +180,8 @@ def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
             <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
             <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
         </tt:Date>
-    </tds:UTCDateTime>
+    </tt:UTCDateTime>
 </tds:SetSystemDateAndTime>""".strip()
-    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-
-def set_timezone(camera: Camera) -> str:
-    sdt = camera.system_date_and_time
-    body = f"""
-<tds:SetSystemDateAndTime>
-    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
-</tds:SetSystemDateAndTime>""".strip()
-
-    """
-    <tds:UTCDateTime>
-        <tt:Time>
-            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
-            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
-            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
-        </tt:Time>
-        <tt:Date>
-            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
-            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
-            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
-        </tt:Date>
-    </tds:UTCDateTime>
-    """
-
-    return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-
-
-def set_system_date_and_time_parameters(camera: Camera) -> str:
-    utc_time = time.gmtime()
-    sdt = camera.system_date_and_time
-    sdt.utc_date_time=DateTime(
-        date=Date(year=utc_time.tm_year, month=utc_time.tm_mon, day=utc_time.tm_mday),
-        time=Time(hour=utc_time.tm_hour, minute=utc_time.tm_min, second=utc_time.tm_sec)
-    )
-
-    body = f"""
-<tds:SetSystemDateAndTime>
-    <tds:DateTimeType>{sdt.date_time_type}</tds:DateTimeType>
-    <tds:DaylightSavings>{str(sdt.daylight_savings).lower()}</tds:DaylightSavings>
-</tds:SetSystemDateAndTime>""".strip()
-
-    """
-    <tds:TimeZone><tt:TZ>{sdt.time_zone.tz}</tt:TZ></tds:TimeZone>
-    <tds:UTCDateTime>
-        <tt:Time>
-            <tt:Hour>{sdt.utc_date_time.time.hour}</tt:Hour>
-            <tt:Minute>{sdt.utc_date_time.time.minute}</tt:Minute>
-            <tt:Second>{sdt.utc_date_time.time.second}</tt:Second>
-        </tt:Time>
-        <tt:Date>
-            <tt:Year>{sdt.utc_date_time.date.year}</tt:Year>
-            <tt:Month>{sdt.utc_date_time.date.month}</tt:Month>
-            <tt:Day>{sdt.utc_date_time.date.day}</tt:Day>
-        </tt:Date>
-    </tds:UTCDateTime>
-    """
-
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 # when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
