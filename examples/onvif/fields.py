@@ -43,6 +43,9 @@ EDITABLE_FIELDS = [
     "capabilities.device_io.relay_outputs.[*].properties.mode",
     "capabilities.device_io.relay_outputs.[*].properties.delay_time",
     "capabilities.device_io.relay_outputs.[*].properties.idle_state",
+    "system_date_and_time.date_time_type",
+    "system_date_and_time.daylight_savings",
+    "system_date_and_time.time_zone.tz",
 ]
 
 UNUSED_FIELDS = [
@@ -396,5 +399,164 @@ Allowed values are shown in the tour_options
 branch. After editing, the tour will show 
 as (* modified). Use the 'w' from the tour 
 main branch to write the tour to the camera.
+""",
+
+    "system_date_and_time":
 """
+Camera time shown in the video feed is 
+local_date_time. Authentication is hashed
+using the utc_date_time. time_zone and 
+daylight_savings are used to calculate the
+local_date_time derived from utc_date_time.
+
+Note that many cameras do not properly 
+implement time_zone and daylight_savings, 
+so experimentation may be required to find a 
+suitable setting.
+
+Editable fields can be changed using the F2
+key at which point the system_date_and_time
+branch node will display a (* modified) tag.
+use the 'w' key to commit the changes.
+
+s - Synch camera time to computer without 
+    using daylight_savings
+
+u - Set camera to 'Local as UTC' which ignores
+    time_zone and daylight_savings settings
+
+t - Show current time and settings
+
+w - Write user edited changes to camera
+""",
+
+    "system_date_and_time.date_time_type":
+"""
+This can can be set to either 'Manual' or
+'NTP'. If set to 'NTP', consult the ntp branch
+node for server settings.
+
+NTP stands for Network Time Protocol. There 
+are many free servers on the internet that can
+provide this service. The camera will need 
+internet access if this setting is used with
+an internet server.
+""",
+
+    "system_date_and_time.daylight_savings":
+"""
+Setting this flag may adjust the local_date_time
+by an hour. Note that many cameras do not 
+implement this function in which case setting
+this field will have no effect on the displayed 
+time. Some cameras may require a full POSIX 
+time zone string representation in the time_zone
+field for this settings to take hold.
+""",
+
+    "system_date_and_time.time_zone.tz":
+"""
+Specifications indicate a POSIX compliant time
+zone string for this field. Most cameras will 
+accept something like UTC+4:00, where 4 is the
+number of hours behind UTC time, set for the 
+camera time zone. If you are unsure of your 
+time zone, use the 's' key command from the 
+system_date_and_time node branch to automatically
+set the time zone.
+
+Some cameras will accept a full POSIX time_zone
+such as 
+
+UTC+4:00:00DST01:00:00,M4.1.0/02:00:00,M10.5.0/02:00:00
+
+where 
+
+UTC+4:00:00 is the number of hours behind UTC 
+DST01:00:00 is the number of hours to adjust for 
+            daylight savings
+M4.1.0/02:00:00 means the the transition to DST 
+            occurs on the first Sunday of April 
+            at 2:00 AM
+M10.5.0/02:00:00 means that the transition back 
+            to standard time occurs on the last 
+            Sunday of October at 2:00 AM
+
+""",
+
+    "system_date_and_time.utc_date_time":
+"""
+UTC is Universal Time Coordinated and is the 
+same for all clocks everywhere and does not 
+depend on Daylight Savings. This field is used 
+during authentication and is the basis for the 
+time_offset field.
+""",
+
+    "system_date_and_time.local_date_time":
+"""
+This is the time displayed in the camera video
+feed and accounts for time zone and daylight 
+savings if properly implemented.
+""",
+
+        "time_offset":
+"""
+This is the difference in UTC time from the 
+computer to the camera and is used during 
+authentication as a hash.
+""",
+
+    "capabilities.events":
+"""
+Events from the camera can be captured by
+selecting events from the event_properties
+topic_set and starting either a listener
+or polling operation.
+""",
+
+    "capabilities.events.event_properties.topic_set":
+"""
+Events can be selected from the list for monitoring.
+Select an event by highlighting it then using either
+the space or enter key. Highlighted events will show
+a star next to the event name. Once events have been 
+selected, navigate back to this node and start the 
+event monitoring algorithm of yhour preference.
+
+There are two types of monitoring available, receive 
+and pull. The receive type will start an http server
+that the camera will use to push an event to the host
+computer. Pull type will cause the host computer to 
+poll the camera at an interval of five seconds to 
+query for events.
+
+You can also select all events in the list for
+monitoring.
+
+r - recieve selected events
+
+R - receive all events 
+
+p - pull selected events 
+
+P - pull all events 
+
+u - unsubscribe all events
+""",
+
+    "capabilities.device_io.relay_outputs.[*]":
+"""
+If the camera is equipped with a relay, it can be 
+configured and triggered from here. Set the relay
+parameters in the editable fields in the properties 
+field in the list below. Consult the options branch
+for allowed values.
+
+w - Write user edited values to the camera
+
+a - Activate the relay
+
+i - Inactivate the relay
+""",
 }

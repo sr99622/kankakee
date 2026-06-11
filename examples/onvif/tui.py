@@ -251,18 +251,6 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             node.set_label("system_date_and_time")
                         except Exception as ex:
                             print(f"error: {ex}")
-                case 'z':
-                    if node.label.plain.endswith("(* modified)"):
-                        try:
-                            print("FOUND MODIFIED TAG")
-                            print(set_timezone(camera))
-                            get_time_offset(camera)
-                            self.show_system_date_and_time(camera)
-                            self.update_tree_time(camera, node)
-                            node.set_label("system_date_and_time")
-                        except Exception as ex:
-                            print(f"error: {ex}")
-
 
         if match := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
             index = int(match[1])
@@ -270,7 +258,7 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             #print(f"FOUND EVENT TOPIC: {node.label}, {topic}")
             #print(f"event.key: {event.key}")
             match event.key:
-                case 'space':
+                case 'space' | 'enter':
                     print("GOT SPACE KEY")
                     if node.label.plain.startswith("*"):
                         node.set_label(f"[{index}]: {topic}")
@@ -630,6 +618,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
 
         self.debug_log.write(f"action edit selected: {node.data["fqn"]}")
         fqn = node.data["fqn"]
+
+        if not is_editable_field(fqn): 
+            return
+
         camera = node.data["camera"]
         owner, field_name, field_type, indices = resolve_fqn_owner(camera, fqn)
         self.debug_log.write(f"FIELD TYPE: {field_type}")
