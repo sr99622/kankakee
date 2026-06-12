@@ -537,6 +537,15 @@ def set_relay_output_state(camera: Camera, relay_output: RelayOutput, state: str
 
     return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+def start_multicast_streaming(camera: Camera, profile_token: str) -> str:
+    body = f"""<trt:StartMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StartMulticastStreaming>"""
+    print(body)
+    return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
+
+def stop_multicast_streaming(camera: Camera, profile_token: str) -> str:
+    body = f"""<trt:StopMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StopMulticastStreaming>"""
+    print(body)
+    return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
     ip = ipaddress.ip_address(encoder.multicast.ip_address)

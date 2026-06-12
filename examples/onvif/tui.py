@@ -21,7 +21,8 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         get_preset_tours, parse_get_preset_tours_response, modify_preset_tour, pull_messages, \
         set_relay_output_settings, set_relay_output_state, subscribe_event, \
         get_local_date_and_time, set_system_date_and_time, create_pull_point_subscription, \
-        get_time_offset, get_local_date_and_time_as_utc
+        get_time_offset, get_local_date_and_time_as_utc, start_multicast_streaming, \
+        stop_multicast_streaming, get_profiles
 from datastructures.event import SubscriptionReference, SubscriptionType, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
@@ -237,6 +238,17 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             self.update_tree_time(camera, node)
                             node.set_label("system_date_and_time")
                             self.debug_log.write("\nsystem_date_and_time has been updated successfully")
+
+            if found := re.fullmatch(r"profiles\.\[(\d+)\]", fqn):
+                index = int(found[1])
+                profile_token = camera.profiles[index].token
+                match event.key:
+                    case 's':
+                        print(start_multicast_streaming(camera, profile_token))
+                        self.debug_log.write("Multicast streaming started")
+                    case 't':
+                        print(stop_multicast_streaming(camera, profile_token))
+                        self.debug_log.write("Multicast streaming stopped")
 
             if found := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
                 index = int(found[1])

@@ -580,4 +580,278 @@ a - Activate the relay
 
 i - Inactivate the relay
 """,
+
+    "profiles":
+"""
+Media settings are found here. The first profile 
+is generally the main profile and the subsequent 
+profiles show sub streams. Both video and audio 
+parameters may be observed and set here.
+
+Branches labelled _options show available 
+settings for fields.
+""",
+
+    "profiles.[*]":
+"""
+Multicast can be started and stopped from this node
+
+'s' - Start multicast streaming
+
+'t' - Stop multicast streaming
+""",
+
+    "profiles.[*].video_encoder":
+"""
+Video encoder configuration controls how video
+from the profile is encoded and streamed.
+
+It includes the codec, resolution, quality,
+rate control, multicast behavior, and session
+timeout for the video stream.
+""",
+
+    "profiles.[*].video_encoder.token":
+"""
+Unique identifier for this video encoder
+configuration.
+
+This token is used when referencing or updating
+the encoder configuration.
+""",
+
+    "profiles.[*].video_encoder.name":
+"""
+Human-readable name assigned to this video
+encoder configuration.
+""",
+
+    "profiles.[*].video_encoder.use_count":
+"""
+Number of media profiles or consumers currently
+using this configuration.
+
+Changing a configuration with a nonzero use count
+may affect other profiles or users.
+""",
+
+    "profiles.[*].video_encoder.encoding":
+"""
+Encoding format used for the video stream.
+
+Typical ONVIF values include JPEG, MPEG4, and H264.
+""",
+
+    "profiles.[*].video_encoder.resolution":
+"""
+Pixel resolution of the encoded video stream.
+
+This represents the width and height used for
+the encoded image.
+""",
+
+    "profiles.[*].video_encoder.quality":
+"""
+Relative video quality value.
+
+A higher value within the supported quality range
+means higher video quality.
+""",
+
+    "profiles.[*].video_encoder.rate_control":
+"""
+Rate control settings define how the device limits
+frame rate, encoding interval, and bitrate.
+
+If rate control is omitted by a device, the current
+rate control behavior may be vendor-specific.
+""",
+
+    "profiles.[*].video_encoder.rate_control.frame_rate_limit":
+"""
+Maximum output frame rate in frames per second.
+
+This limits how many encoded video frames may be
+transmitted per second.
+""",
+
+    "profiles.[*].video_encoder.rate_control.encoding_interval":
+"""
+Interval at which images are encoded and transmitted.
+
+A value of 1 means every frame is encoded. A value
+of 2 means every second frame is encoded.
+""",
+
+    "profiles.[*].video_encoder.rate_control.bitrate_limit":
+"""
+Maximum output bitrate for the encoded stream.
+
+The ONVIF media specification describes this value
+as a bitrate limit in kbps.
+""",
+
+    "profiles.[*].video_encoder.multicast":
+"""
+Multicast configuration for the video stream.
+
+This controls the multicast address, port, TTL, and
+whether multicast streaming starts automatically.
+
+
+""",
+
+    "profiles.[*].video_encoder.multicast.ip_address":
+"""
+Multicast IP address used for streaming.
+
+The address may be derived from either the IPv4 or
+IPv6 address element in the ONVIF multicast
+configuration.
+""",
+
+    "profiles.[*].video_encoder.multicast.port":
+"""
+UDP port used for multicast video streaming.
+""",
+
+    "profiles.[*].video_encoder.multicast.ttl":
+"""
+Time-to-live value for multicast packets.
+
+This controls how far multicast packets may travel
+across routed networks.
+""",
+
+    "profiles.[*].video_encoder.multicast.auto_start":
+"""
+Indicates whether multicast streaming should start
+automatically.
+""",
+
+    "profiles.[*].video_encoder.session_timeout":
+"""
+Session timeout for the video stream.
+
+This value defines stream session behavior and is
+usually expressed as an XML duration.
+""",
+
+    "profiles.[*].video_encoder.gov_length":
+"""
+Group of Video length for MPEG4 or H264 encoding.
+
+This value controls the interval of intra-coded
+frames used by the encoder.
+""",
+
+    "profiles.[*].video_encoder.profile":
+"""
+Encoding profile used for codec-specific settings.
+
+For H264 this corresponds to the H264 profile, such
+as Baseline, Main, or High when supported.
+""",
+
+    "profiles.[*].audio_encoder":
+"""
+Audio encoder configuration controls how audio
+captured by the device is encoded and streamed.
+
+It includes the codec, bitrate, sample rate,
+multicast settings, and session timeout.
+""",
+
+    "profiles.[*].audio_encoder.token":
+"""
+Unique identifier for this audio encoder
+configuration.
+
+This token is used when referencing or updating
+the encoder configuration.
+""",
+
+    "profiles.[*].audio_encoder.name":
+"""
+Human-readable name assigned to this audio
+encoder configuration.
+""",
+
+    "profiles.[*].audio_encoder.use_count":
+"""
+Number of media profiles or consumers currently
+using this configuration.
+
+Changing a configuration with a nonzero use count
+may affect other profiles or users.
+""",
+
+    "profiles.[*].audio_encoder.encoding":
+"""
+Encoding format used for the audio stream.
+
+Typical ONVIF values include G711, G726, AAC,
+and other codecs supported by the device.
+""",
+
+    "profiles.[*].audio_encoder.bitrate":
+"""
+Target audio bitrate used by the encoder.
+
+Higher bitrates generally improve audio quality
+while increasing network bandwidth usage.
+""",
+
+    "profiles.[*].audio_encoder.sample_rate":
+"""
+Audio sampling frequency in Hertz.
+
+Common values include 8000, 16000, 32000,
+44100, and 48000 depending on codec support.
+""",
+
+    "profiles.[*].audio_encoder.multicast":
+"""
+Multicast configuration for the audio stream.
+
+This controls the multicast address, port, TTL,
+and automatic startup behavior.
+""",
+
+    "profiles.[*].audio_encoder.multicast.ip_address":
+"""
+Multicast IP address used for audio streaming.
+
+The address may be derived from either the IPv4
+or IPv6 multicast configuration.
+""",
+
+    "profiles.[*].audio_encoder.multicast.port":
+"""
+UDP port used for multicast audio streaming.
+""",
+
+    "profiles.[*].audio_encoder.multicast.ttl":
+"""
+Time-to-live value for multicast packets.
+
+This controls how far multicast packets may
+travel across routed networks.
+""",
+
+    "profiles.[*].audio_encoder.multicast.auto_start":
+"""
+Indicates whether multicast audio streaming
+should start automatically.
+""",
+
+    "profiles.[*].audio_encoder.session_timeout":
+"""
+Session timeout for the audio stream.
+
+This value defines stream session behavior and
+is typically expressed as an XML duration.
+""",
+
+
 }
