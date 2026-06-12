@@ -20,6 +20,16 @@ class SoapFault:
     reason: Optional[str] = None
     detail: Optional[str] = None
 
+    def __repr__(self) -> str:
+        return (
+            "SoapFault(\n"
+            f"    code={self.code!r},\n"
+            f"    subcodes={self.subcodes!r},\n"
+            f"    reason={self.reason!r},\n"
+            f"    detail={self.detail!r}\n"
+            ")"
+        )
+
 def parse_soap_fault(xml_text: str) -> Optional[SoapFault]:
     root = etree.fromstring(xml_text.encode("utf-8"))
 

@@ -11,7 +11,7 @@ from dataclasses import is_dataclass, fields
 from rich.text import Text
 from utils.xml import get_xml_value
 from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn_owner, \
-        convert_string_value, join_fqn, is_editable_field, normalize_fqn
+        convert_string_value, join_fqn, is_editable_field, normalize_fqn, main_screen_text
 from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
         set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
         set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
@@ -79,6 +79,11 @@ class CameraTree(Tree):
         walk(node)
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+
+        if event.node.parent is None:
+            self.app.debug_log.clear()
+            self.app.debug_log.write(main_screen_text)
+
         if not event.node.data: return
 
         if camera := event.node.data.get("camera"):

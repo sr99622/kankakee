@@ -54,10 +54,9 @@ class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
     system_date_and_time: Optional[SystemDateAndTime] = field(default_factory=SystemDateAndTime)
-    device_information: Optional[DeviceInformation] = field(default_factory=DeviceInformation)
-    # not sure which implementation is more correct
-    #device_information: Optional[DeviceInformation] = None
+    ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
     time_offset: Optional[int] = 0
+    device_information: Optional[DeviceInformation] = field(default_factory=DeviceInformation)
     username: Optional[str] = None
     password: Optional[str] = None
     capabilities: Optional[Capabilities] = field(default_factory=Capabilities)
@@ -65,7 +64,6 @@ class Camera:
     network_interfaces: list[NetworkInterface] = field(default_factory=NetworkInterface)
     network_gateway: Optional[str] = None
     dns: Optional[DNSInformation] = field(default_factory=DNSInformation)
-    ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
     hostname: Optional[HostnameInformation] = field(default_factory=HostnameInformation)
     subscription_references: list[SubscriptionReference] = field(default_factory=list)
     audio_outputs: list[AudioOutputConfiguration] = None

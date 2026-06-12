@@ -38,6 +38,8 @@ EDITABLE_FIELDS = [
     "profiles.[*].video_encoder.rate_control.encoding_interval",
     "profiles.[*].video_encoder.rate_control.bitrate_limit",
     "capabilities.ptz.presets.[*].name",
+    "capabilities.ptz.tours.[*].name",
+    "capabilities.ptz.tours.[*].auto_start",
     "capabilities.ptz.tours.[*].spots.[*].stay_time",
     "capabilities.ptz.tours.[*].spots.[*].preset_token",
     "capabilities.device_io.relay_outputs.[*].properties.mode",
@@ -203,30 +205,21 @@ def analyze_field_type(field_type: Any) -> tuple[Any, bool, bool]:
 
     return field_type, is_optional, False
 
-ptz_screen = \
-"""
-PPPp   TTTTTTT  ZZZZZZ
-P   p     T         Z  
-P   p     T        Z
-PPP       T       Z
-P         T      Z
-P         T     ZZZZZZ
+main_screen_text = """
+Data is structured according to ONVIF standard. 
+Open tree branches using the enter key to find
+camera field settings. Editable fields are marked 
+with a green pencil icon '✎'. 
 
-Control camera position using the commands
+Most fields can be set by using the F2 key and 
+pressing enter to commit the change. Some fields
+may require the additional step of navigating to 
+the branch parent node, then using the 'w' key 
+to write the data to the camera, please refer to
+the individual field instructions for details.
 
-i - info
-w - up
-s - down
-a - left
-d - right
-z - zoom in
-x - zoom out
-c - stop
-"""
-
-ptz_presets = \
-"""
-
+Events, PTZ functions and Relay IO can be found 
+in the capabilities branch.
 """
 
 field_descriptions = {
@@ -287,7 +280,18 @@ DNS servers
 """,
 
     "capabilities.ptz.xaddr":
-ptz_screen,
+"""
+Control camera position using the commands
+
+i - info
+w - up
+s - down
+a - left
+d - right
+z - zoom in
+x - zoom out
+c - stop
+""",
 
     "capabilities.ptz.presets":
 """
@@ -317,11 +321,19 @@ d - delete
 The token is a read only field assigned by
 the camera to identify the preset.
 """,
+
     "capabilities.ptz.presets.[*].name":
 """
 The name is a user-editable field that can
 be used to identify the preset.
+
+The name is saved when the position is set
+using the 's' key from the preset branch.
+Note that the position of the preset will
+also be set in that case, so make sure that 
+the camera is in the desired position already.
 """,
+
     "capabilities.ptz.presets.[*].ptz_position":
 """
 The ptz_position field is designed to be a 
@@ -366,6 +378,8 @@ the preset and stay_time.
 The tour main branch will show modified.
 From there, use the 'w' key to write the 
 spots data to the camera.
+
+n - add new spot
 """,
 
     "capabilities.ptz.tours.[*].spots.[*]":
@@ -513,6 +527,13 @@ Events from the camera can be captured by
 selecting events from the event_properties
 topic_set and starting either a listener
 or polling operation.
+""",
+
+    "capabilities.events.event_properties":
+
+"""
+Open the branch and select events from the
+topic_set for observation.
 """,
 
     "capabilities.events.event_properties.topic_set":
