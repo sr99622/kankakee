@@ -339,7 +339,6 @@ def get_relay_outputs(camera: Camera) -> None:
 def get_relay_output_options(camera: Camera, relay_output: RelayOutput) -> None:
     body = f"""<tmd:GetRelayOutputOptions><tmd:RelayOutputToken>{relay_output.token}</tmd:RelayOutputToken></tmd:GetRelayOutputOptions>"""
     xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #print(xml)
     setattr(relay_output, "options", parse_get_relay_output_options_response(xml))
 
 @safe_run
@@ -403,29 +402,18 @@ def set_preset(camera: Camera, profile_token: str, preset: PTZPreset=None) -> st
 def get_preset_tours(camera:Camera, profile_token: str) -> None:
     body = f"""<tptz:GetPresetTours><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTours>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #print(f"get_preset_tours: {xml}")
     setattr(camera.capabilities.ptz, "tours", parse_get_preset_tours_response(xml))
 
 @safe_run
 def get_preset_tour_options(camera: Camera, profile_token: str) -> str:
     body = f"""<tptz:GetPresetTourOptions><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTourOptions>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #print(f"get_preset_tour_options: {xml}")
     setattr(camera.capabilities.ptz, "tour_options", parse_get_preset_tour_options_response(xml))
 
 @safe_run
 def create_preset_tour(camera: Camera, profile_token: str) -> str:
     body = f"""<tptz:CreatePresetTour><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:CreatePresetTour>"""
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
-
-#@safe_run
-#def get_preset_tour(camera: Camera, profile_token: str, preset_tour_token: str) -> str:
-#    body = f"""
-#<tptz:GetPresetTour>
-#    <tptz:ProfileToken>{profile_token}</tptz:ProfileToken>
-#    <tptz:PresetTourToken>{preset_tour_token}</tptz:PresetTourToken>
-#</tptz:GetPresetTour>""".strip()
-#    return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
 def remove_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTour) -> str:
@@ -441,7 +429,6 @@ def remove_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTo
 def modify_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTour) ->str:
 
     auto_start = "true" if preset_tour.auto_start else "false"
-    #preset_tour = camera.capabilities.ptz.tours[tour_index]
     spots = []
     for spot in preset_tour.spots:
         print(f"detail: {spot.preset_token} stay_time: {spot.stay_time}")
@@ -463,8 +450,6 @@ def modify_preset_tour(camera: Camera, profile_token: str, preset_tour: PresetTo
     </tt:PresetTour>
 </tptz:ModifyPresetTour>""".strip()
 
-    print(body)
-    #return body
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
@@ -747,7 +732,7 @@ def set_dns(camera: Camera) -> str:
 
 @safe_run
 def create_pull_point_subscription(camera: Camera, event: str | None = None) -> str:
-    initial_termination_time = "PT1M"
+    initial_termination_time = "PT10M"
 
     filter_xml = ""
     if event:
@@ -773,7 +758,7 @@ def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
 @safe_run
 def subscribe_event(camera: Camera, ip_address: str, event: str | None = None) -> str:
     callback_url = f"http://{ip_address}:8800/onvif/events"
-    initial_termination_time = "PT1M"
+    initial_termination_time = "PT10M"
 
     filter = ""
     if event:
@@ -874,7 +859,6 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_imaging_options(camera, profile)
         if camera.capabilities.device_io:
             get_device_io_service_capabilities(camera)
-            #print(f"relay outputs: {camera.capabilities.device_io.relay_outputs}")
             if camera.capabilities.device_io.relay_outputs:
                 get_relay_outputs(camera)
                 for output in camera.capabilities.device_io.relay_outputs:

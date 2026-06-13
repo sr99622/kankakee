@@ -26,6 +26,7 @@ EDITABLE_FIELDS = [
     "profiles.[*].audio_encoder.multicast.port",
     "profiles.[*].audio_encoder.multicast.ttl",
     "profiles.[*].audio_encoder.multicast.ip_address",
+    "profiles.[*].video_encoder.resolution",
     "profiles.[*].video_encoder.session_timeout",
     "profiles.[*].video_encoder.encoding",
     "profiles.[*].video_encoder.profile",
@@ -521,6 +522,18 @@ computer to the camera and is used during
 authentication as a hash.
 """,
 
+    "capabilities":
+"""
+Some optional settings may be found here if 
+supported by the camera.
+
+PTZ 
+
+Events 
+
+Device IO (Relay)
+""",
+
     "capabilities.events":
 """
 Events from the camera can be captured by
@@ -538,19 +551,20 @@ topic_set for observation.
 
     "capabilities.events.event_properties.topic_set":
 """
-Events can be selected from the list for monitoring.
-Select an event by highlighting it then using either
-the space or enter key. Highlighted events will show
-a star next to the event name. Once events have been 
-selected, navigate back to this node and start the 
-event monitoring algorithm of yhour preference.
+Events can be selected from the list for 
+monitoring. Select an event by highlighting it 
+then using either the space or enter key. 
+Highlighted events will show a star next to the 
+event name. Once events have been selected, 
+navigate back to this node and start the event 
+monitoring algorithm of yhour preference.
 
-There are two types of monitoring available, receive 
-and pull. The receive type will start an http server
-that the camera will use to push an event to the host
-computer. Pull type will cause the host computer to 
-poll the camera at an interval of five seconds to 
-query for events.
+There are two types of monitoring available, 
+receive and pull. The receive type will start an 
+http server that the camera will use to push an 
+event to the host computer. Pull type will cause 
+the host computer to poll the camera at an 
+interval of five seconds to query for events.
 
 You can also select all events in the list for
 monitoring.
@@ -566,13 +580,56 @@ P - pull all events
 u - unsubscribe all events
 """,
 
+    "capabilities.device_io.relay_outputs.[*].properties":
+"""
+Available settings and ranges for one or all 
+relay outputs. A device that has one or more 
+RelayOutputs will show these fields.
+""",
+
+    "capabilities.device_io.relay_outputs.[*].properties.mode":
+"""
+'Bistable' or 'Monostable'
+
+Bistable – After setting the state, the relay 
+           remains in this state.
+
+Monostable – After setting the state, the relay 
+             returns to its idle state after 
+             the specified time.
+""",
+
+    "capabilities.device_io.relay_outputs.[*].properties.delay_time":
+"""
+Time after which the relay returns to its idle 
+state if it is in monostable mode. If the Mode 
+field is set to bistable mode the value of the 
+parameter can be ignored.
+""",
+
+    "capabilities.device_io.relay_outputs.[*].properties.idle_state":
+"""
+'open' or 'closed'
+
+'open' means that the relay is open when the 
+relay state is set to 'inactive' through the 
+trigger command and closed when the state is 
+set to 'active' through the same command.
+
+'closed' means that the relay is closed when 
+the relay state is set to 'inactive' through 
+the trigger command and open when the state 
+is set to 'active' through the same command.
+""",
+
     "capabilities.device_io.relay_outputs.[*]":
 """
-If the camera is equipped with a relay, it can be 
-configured and triggered from here. Set the relay
-parameters in the editable fields in the properties 
-field in the list below. Consult the options branch
-for allowed values.
+If the camera is equipped with a relay, it 
+can be configured and triggered from here. 
+Set the relay parameters in the editable 
+fields in the properties field in the list 
+below. Consult the options branchfor allowed 
+values.
 
 w - Write user edited values to the camera
 
@@ -594,7 +651,10 @@ settings for fields.
 
     "profiles.[*]":
 """
-Multicast can be started and stopped from this node
+Open the branches below to view profile fields.
+
+Multicast for this profile can be started and 
+stopped from this node.
 
 's' - Start multicast streaming
 
@@ -852,6 +912,5 @@ Session timeout for the audio stream.
 This value defines stream session behavior and
 is typically expressed as an XML duration.
 """,
-
 
 }

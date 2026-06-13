@@ -3,13 +3,6 @@ from typing import Optional
 from lxml import etree
 from utils.xml import int_attr, text, text_list, bool_text, NS
 
-#NS = {
-#    "s": "http://www.w3.org/2003/05/soap-envelope",
-#    "tmd": "http://www.onvif.org/ver10/deviceIO/wsdl",
-#    "tt": "http://www.onvif.org/ver10/schema",
-#}
-
-
 @dataclass
 class RelayOutputOptions:
     token: Optional[str] = None
@@ -38,14 +31,6 @@ class DeviceIOServiceCapabilities:
     relay_outputs: Optional[int] = None
     serial_ports: Optional[int] = None
     digital_inputs: Optional[int] = None
-
-
-#def int_attr(elem: etree._Element | None, name: str) -> Optional[int]:
-#    if elem is None:
-#        return None
-#
-#    value = elem.get(name)
-#    return int(value) if value is not None else None
 
 
 def parse_deviceio_service_capabilities_response(xml: str) -> Optional[DeviceIOServiceCapabilities]:
@@ -119,3 +104,4 @@ def parse_get_relay_output_options_response(xml: str) -> RelayOutputOptions:
         delay_times=delay_time_text.split() if delay_time_text else [],
         discrete=bool_text(options_el, "./tmd:Discrete"),
     )
+

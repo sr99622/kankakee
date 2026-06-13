@@ -37,6 +37,7 @@ import ipaddress
 from urllib.parse import unquote_plus, urlparse
 from camera_tree import CameraTree
 import re
+import json
 from utils.soap import onvif_post
 
 RESUBSCRIBE_MARGIN_SECONDS = 10
@@ -321,8 +322,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             print(set_relay_output_settings(camera, relay_output))
                             node.set_label(f"[{index}]")
                     case 'a':
+                        self.debug_log.write("RELAY ACTIVATE")
                         print(set_relay_output_state(camera, relay_output, "active"))
                     case 'i':
+                        self.debug_log.write("RELAY DEACTIVATE")
                         print(set_relay_output_state(camera, relay_output, "inactive"))
 
             if fqn == "capabilities.ptz.presets":
@@ -630,7 +633,9 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
 
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
         for alarm in alarms:
-            self.debug_log.write(str(alarm))
+            for key, value in alarm.items():
+                self.debug_log.write(f"{key}: {value}")
+            self.debug_log.write("\n")
 
     def on_camera_events_from_thread(self, alarms: list[dict[str, str]]) -> None:
         print(f"on_camera_events_from_thread: {alarms}")
@@ -697,7 +702,6 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             for reference in camera.subscription_references:
                 if reference.subscription_type == SubscriptionType.PULL:
                     xml = pull_messages(camera, reference.xaddr)
-                    print(f"OMG: {xml}")
                     if not (response := parse_pull_messages_response(xml)): continue
                     for notification in response.notifications:
                         self.debug_log.write(notification)
