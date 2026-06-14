@@ -104,7 +104,7 @@ def onvif_post(url: str, body: str, username: str, password: str, time_offset: i
     response = requests.post(url, data=soap, headers=headers, timeout=POST_TIMEOUT)
     fault = parse_soap_fault(response.text)
     if fault:
-        raise ValueError(f"Input:\n{body}\n\nFault:\n{fault}\n\nURL:\n{url}")
+        raise ValueError(f"\n\n{body}\n\nFault:\n{fault}\n\nURL:\n{url}")
     response.raise_for_status()
     output = response.text
     return output

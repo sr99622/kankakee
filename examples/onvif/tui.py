@@ -22,7 +22,7 @@ from devices.camera import Camera, discover, set_network_default_gateway, set_ho
         set_relay_output_settings, set_relay_output_state, subscribe_event, \
         get_local_date_and_time, set_system_date_and_time, create_pull_point_subscription, \
         get_time_offset, get_local_date_and_time_as_utc, start_multicast_streaming, \
-        stop_multicast_streaming, get_profiles
+        stop_multicast_streaming, get_profiles, find_camera_manually
 from datastructures.event import SubscriptionReference, SubscriptionType, parse_pull_messages_response
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
@@ -44,9 +44,15 @@ RESUBSCRIBE_MARGIN_SECONDS = 10
 
 class ObjectBrowser(App):
 
-    def __init__(self, ip_address: str) -> None:
+    def __init__(self, args: argparse.Namespace) -> None:
         super().__init__()
-        self.ip_address = ip_address
+        self.ip_address = args.ip_address
+        self.manual = args.manual
+        self.username = args.username
+        self.password = args.password
+
+        if self.manual:
+            print(f"FOUND MANUAL ADDRESS: {self.manual}")
 
     BINDINGS = [
         ("q", "quit", "Quit"),
@@ -160,14 +166,12 @@ class ObjectBrowser(App):
 
     def update_tree_time(self, camera: Camera, node: TreeNode) -> None:
         expanded = self.camera_tree.capture_expanded_nodes(node)
-        print(expanded)
         node.remove_children()
         self.camera_tree._add_value(node, "date_time_type", camera.system_date_and_time.date_time_type, camera)
         self.camera_tree._add_value(node, "daylight_savings", camera.system_date_and_time.daylight_savings, camera)
         self.camera_tree._add_value(node, "time_zone", camera.system_date_and_time.time_zone, camera)
         self.camera_tree._add_value(node, "utc_date_time", camera.system_date_and_time.utc_date_time, camera)
         self.camera_tree._add_value(node, "local_date_time", camera.system_date_and_time.local_date_time, camera)
-        #node.expand()
         self.camera_tree.restore_expanded_nodes(node, expanded)
 
     def show_system_date_and_time(self, camera: Camera) -> None:
@@ -195,6 +199,8 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
         node = self.camera_tree.cursor_node
         if not node.data: return
         if not (camera := node.data.get("camera")): return
+        if not len(camera.profiles): return
+        
         profile_token = camera.profiles[0].token
 
         if node.label.plain == camera.name and event.key == 'r':
@@ -682,15 +688,22 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             self.call_from_thread(self.camera_tree.add_camera, camera)
 
         def get_camera_credentials(camera: Camera) -> None:
+            """
             if camera.name == "ANV-L7012R":
                 camera.username = "admin"
                 camera.password = "Admin123"
             else:
                 camera.username = "admin"
                 camera.password = "admin123"
+            """
+            camera.username = self.username
+            camera.password = self.password
 
         try:
-            discover(self.ip_address, get_camera_credentials, camera_filled=camera_filled)
+            if self.manual:
+                find_camera_manually(self.manual, get_camera_credentials, camera_filled=camera_filled)
+            else:
+                discover(self.ip_address, get_camera_credentials, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
             self.debug_log.write(traceback.format_exc())
@@ -708,7 +721,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-ip", "--ip_address", default="0.0.0.0", help="Local IP address binding for ONVIF discover/event callback")
+    parser.add_argument("-i", "--ip_address", default="0.0.0.0", help="Local IP address binding for ONVIF discover/event callback")
+    parser.add_argument("-m", "--manual", default=None, help="Camera IP address for manual camera discovery")
+    parser.add_argument("-u", "--username", default="", help="username for camera authentication")
+    parser.add_argument("-p", "--password", default="", help="password for camera authentication")
     args = parser.parse_args()
-    app = ObjectBrowser(args.ip_address)
+    app = ObjectBrowser(args)
     app.run() 

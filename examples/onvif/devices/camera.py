@@ -38,8 +38,8 @@ from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response
 from datastructures.device_io import parse_deviceio_service_capabilities_response, \
         parse_get_relay_outputs_response, RelayOutput, parse_get_relay_output_options_response
 
-class AuthorizationError(Exception):
-    pass
+#class AuthorizationError(Exception):
+#    pass
 
 @dataclass
 class DeviceInformation:
@@ -53,6 +53,7 @@ class DeviceInformation:
 class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
+    last_error: Optional[str] = None
     system_date_and_time: Optional[SystemDateAndTime] = field(default_factory=SystemDateAndTime)
     ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
     time_offset: Optional[int] = 0
@@ -75,8 +76,20 @@ def safe_run(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception as e:
-            print(f"Error in {func.__name__}: {e}")
+        except Exception as ex:
+
+            camera = None
+            for arg in args:
+                if isinstance(arg, Camera):
+                    camera = arg
+                    break 
+            if camera:
+                msg = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n{ex}"
+                if not camera.last_error:
+                    camera.last_error = msg
+                else:
+                    camera.last_error += f"\n{msg}"
+
             print(traceback.format_exc())
             return None
     return wrapper
@@ -868,9 +881,10 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
 
     except Exception as ex:
         print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
-        print(traceback.format_exc())
-        if "notauthorized" in str(ex).lower():
-            raise AuthorizationError("Not Authorized")
+        camera.last_error = f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}"
+        #print(traceback.format_exc())
+        #if "notauthorized" in str(ex).lower():
+        #    raise AuthorizationError("Not Authorized")
 
     return camera
 
@@ -949,3 +963,27 @@ def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
                     camera_filled(camera)
 
     return cameras
+
+def find_camera_manually(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+    xaddr = f"http://{ip_address}/onvif/device_service"
+    name = ip_address
+    cameras = []
+    camera_jobs = []
+    camera_jobs.append((xaddr, name))
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(get_camera, xaddr, name, get_camera_credentials)
+            for xaddr, name in camera_jobs
+        ]
+
+        for future in as_completed(futures):
+            if camera := future.result():
+                cameras.append(camera)
+
+                if camera_filled:
+                    camera_filled(camera)
+
+    return cameras
+
+

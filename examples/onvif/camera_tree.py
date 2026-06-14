@@ -98,6 +98,9 @@ class CameraTree(Tree):
         self.app.debug_log.write(fqn)
         if desc := field_descriptions.get(sfqn):
             self.app.debug_log.write(desc)
+        if fqn == "last_error" and camera.last_error:
+            self.app.debug_log.clear()
+            self.app.debug_log.write(camera.last_error)
 
     def _make_editable_label(self, field: str, value: str) -> Text:
         label = Text()
