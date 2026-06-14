@@ -1,31 +1,9 @@
-from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Footer, Tree, Input, RichLog
+from textual.widgets import Tree
 from textual.widgets.tree import TreeNode
-from textual.binding import Binding
-from textual.screen import ModalScreen
-from textual.widgets import Button, Label
-from textual.containers import Vertical
-from textual.timer import Timer
 from dataclasses import is_dataclass, fields
 from rich.text import Text
-from utils.xml import get_xml_value
-from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, resolve_fqn_owner, \
-        convert_string_value, join_fqn, is_editable_field, normalize_fqn, main_screen_text
-from devices.camera import Camera, discover, set_network_default_gateway, set_hostname_from_dhcp, \
-        set_hostname, set_dns, set_ntp, set_network_interfaces, reboot, set_imaging_settings, \
-        set_audio_encoder_configuration, set_video_encoder_configuration, subscribe_events, \
-        unsubscribe, create_pull_point_subscription
-from datastructures.event import SubscriptionReference
-from server import Server, Handler, PORT
-from functools import partial, wraps
-import traceback
-from datetime import datetime, timezone, timedelta
-import argparse
-import psutil
-import socket
-import ipaddress
-from urllib.parse import unquote_plus, urlparse
+from fields import UNUSED_FIELDS, HIDDEN_FIELDS, field_descriptions, join_fqn, is_editable_field, main_screen_text
+from devices.camera import Camera
 import re
 
 RESUBSCRIBE_MARGIN_SECONDS = 10

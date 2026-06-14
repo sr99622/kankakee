@@ -84,7 +84,7 @@ def safe_run(func):
                     camera = arg
                     break 
             if camera:
-                msg = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n{ex}"
+                msg = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n\n{ex}\n"
                 if not camera.last_error:
                     camera.last_error = msg
                 else:
@@ -124,6 +124,7 @@ def get_system_date_and_time(url: str) -> SystemDateAndTime:
     response.raise_for_status()
     return parse_system_date_and_time_response(response.text)
 
+@safe_run
 def get_time_offset(camera: Camera) -> None:
     sdt = get_system_date_and_time(camera.xaddr)
     setattr(camera, "system_date_and_time", sdt)
@@ -134,6 +135,7 @@ def get_time_offset(camera: Camera) -> None:
 
 # this will work as the argument for set_system_date_and_time for most cameras, but some may not implement DST properly, 
 # so the safest option is to ignore DST. It was observed that Hikvision cameras may need a reboot for updating time protocol
+@safe_run
 def get_local_date_and_time(ignore_dst: bool = True) -> SystemDateAndTime:
 
     local_time = time.localtime()
@@ -158,6 +160,7 @@ def get_local_date_and_time(ignore_dst: bool = True) -> SystemDateAndTime:
         )
     )
 
+@safe_run
 def get_local_date_and_time_as_utc() -> SystemDateAndTime:
     local_time = time.localtime()
     return SystemDateAndTime(
@@ -174,6 +177,7 @@ def get_local_date_and_time_as_utc() -> SystemDateAndTime:
         )
     )
 
+@safe_run
 def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
     body = f"""
 <tds:SetSystemDateAndTime>
@@ -198,6 +202,7 @@ def set_system_date_and_time(camera: Camera, sdt: SystemDateAndTime) -> str:
 # when setting camera time using an NTP server, you need to first set_ntp with the NTP server information or accept DHCP settings, 
 # then call set_system_date_and_time with the DateTimeType set to 'NTP'. It has been observed that many cameras do not implement
 # manual NTP server settings for DNS. Also, only a few cameras properly parse a list of servers, many use only the first item
+@safe_run
 def set_ntp(camera: Camera) -> str:
     manual_settings = ""
     if not camera.ntp.from_dhcp:
@@ -511,7 +516,7 @@ def move_stop(camera: Camera, profile_token: str, is_zoom: bool=False) -> str:
 
     return onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-
+@safe_run
 def set_relay_output_settings(camera: Camera, relay_output: RelayOutput) -> str:
     body = f"""
 <tmd:SetRelayOutputSettings>
@@ -526,6 +531,7 @@ def set_relay_output_settings(camera: Camera, relay_output: RelayOutput) -> str:
 
     return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def set_relay_output_state(camera: Camera, relay_output: RelayOutput, state: str) -> str:
     body = f"""
 <tmd:SetRelayOutputState>
@@ -535,16 +541,19 @@ def set_relay_output_state(camera: Camera, relay_output: RelayOutput, state: str
 
     return onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def start_multicast_streaming(camera: Camera, profile_token: str) -> str:
     body = f"""<trt:StartMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StartMulticastStreaming>"""
     print(body)
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def stop_multicast_streaming(camera: Camera, profile_token: str) -> str:
     body = f"""<trt:StopMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StopMulticastStreaming>"""
     print(body)
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfiguration) -> str:
     ip = ipaddress.ip_address(encoder.multicast.ip_address)
     if ip.version == 4:
@@ -605,7 +614,7 @@ def set_video_encoder_configuration(camera: Camera, encoder: VideoEncoderConfigu
 
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-
+@safe_run
 def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfiguration) -> str:
 
     ip = ipaddress.ip_address(encoder.multicast.ip_address)
@@ -642,7 +651,7 @@ def set_audio_encoder_configuration(camera: Camera, encoder: AudioEncoderConfigu
 
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-
+@safe_run
 def set_imaging_settings(camera: Camera, video_source_token: str, imaging: ImagingSettings) -> str:
     ir_cut_filter = f"""
         <tt:IrCutFilter>{imaging.ir_cut_filter}</tt:IrCutFilter>""" if imaging.ir_cut_filter else ""
@@ -659,7 +668,7 @@ def set_imaging_settings(camera: Camera, video_source_token: str, imaging: Imagi
 
     return onvif_post(camera.capabilities.imaging.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-
+@safe_run
 def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, manual: List[str]) -> str:
 
     arg = ""
@@ -685,12 +694,12 @@ def set_network_interfaces(camera: Camera, network_interface: NetworkInterface, 
 
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def reboot(camera: Camera) -> str:
-    body = f"""
-<tds:SystemReboot/>
-"""
+    body = f"""<tds:SystemReboot/>"""
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def set_network_default_gateway(camera: Camera) -> str:
     body = f"""
 <tds:SetNetworkDefaultGateway>
@@ -716,6 +725,7 @@ def set_hostname(camera: Camera) -> str:
 
     return onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
 
+@safe_run
 def set_dns(camera: Camera) -> str:
     manual_xml = ""
     for address_text in camera.dns.dns_manual:
@@ -815,9 +825,7 @@ def subscribe_events(camera: Camera, events: list[str], ip_address: str) -> str:
 
 @safe_run
 def unsubscribe(camera: Camera, subscription_reference_xaddr: str):
-    body = f"""
-<wsnt:Unsubscribe/>
-"""
+    body = f"""<wsnt:Unsubscribe/>"""
     return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
 
 def parse_device_information_response(xml: str) -> DeviceInformation:
@@ -880,11 +888,8 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_audio_decoder_configurations(camera)
 
     except Exception as ex:
-        print(f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}")
-        camera.last_error = f"UNABLE TO COMMUNICATE WITH CAMERA {name}: {ex}"
-        #print(traceback.format_exc())
-        #if "notauthorized" in str(ex).lower():
-        #    raise AuthorizationError("Not Authorized")
+        camera.last_error = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n\n{ex}\n"
+        print(traceback.format_exc())
 
     return camera
 
