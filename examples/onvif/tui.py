@@ -644,7 +644,6 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             self.debug_log.write("\n")
 
     def on_camera_events_from_thread(self, alarms: list[dict[str, str]]) -> None:
-        print(f"on_camera_events_from_thread: {alarms}")
         self.call_from_thread(self.handle_camera_events, alarms)
 
     def http_server_worker(self) -> None:
