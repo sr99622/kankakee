@@ -29,7 +29,7 @@ import argparse
 import psutil
 import socket
 import ipaddress
-from urllib.parse import unquote_plus, urlparse
+from urllib.parse import urlparse
 from camera_tree import CameraTree
 import re
 from utils.soap import onvif_post
@@ -233,7 +233,7 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             sdt.date_time_type = camera.system_date_and_time.date_time_type
                             sdt.daylight_savings = camera.system_date_and_time.daylight_savings
                             sdt.time_zone.tz = camera.system_date_and_time.time_zone.tz
-                            print(set_system_date_and_time(camera, sdt))
+                            set_system_date_and_time(camera, sdt)
                             get_time_offset(camera)
                             self.show_system_date_and_time(camera)
                             self.update_tree_time(camera, node)
@@ -245,10 +245,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 profile_token = camera.profiles[index].token
                 match event.key:
                     case 's':
-                        print(start_multicast_streaming(camera, profile_token))
+                        start_multicast_streaming(camera, profile_token)
                         self.debug_log.write("Multicast streaming started")
                     case 't':
-                        print(stop_multicast_streaming(camera, profile_token))
+                        stop_multicast_streaming(camera, profile_token)
                         self.debug_log.write("Multicast streaming stopped")
 
             if found := re.fullmatch(r"capabilities\.events\.event_properties\.topic_set\.\[(\d+)\]", fqn):
@@ -319,14 +319,14 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 match event.key:
                     case 'w':
                         if node.label.plain.endswith("(* modified)"):
-                            print(set_relay_output_settings(camera, relay_output))
+                            set_relay_output_settings(camera, relay_output)
                             node.set_label(f"[{index}]")
                     case 'a':
                         self.debug_log.write("RELAY ACTIVATE")
-                        print(set_relay_output_state(camera, relay_output, "active"))
+                        set_relay_output_state(camera, relay_output, "active")
                     case 'i':
                         self.debug_log.write("RELAY DEACTIVATE")
-                        print(set_relay_output_state(camera, relay_output, "inactive"))
+                        set_relay_output_state(camera, relay_output, "inactive")
 
             if fqn == "capabilities.ptz.presets":
                 # add a new preset
@@ -352,9 +352,9 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 preset = camera.capabilities.ptz.presets[index]
                 match event.key:
                     case 's':
-                        print(set_preset(camera, profile_token, preset))
+                        set_preset(camera, profile_token, preset)
                     case 'd':
-                        print(remove_preset(camera, profile_token, preset))
+                        remove_preset(camera, profile_token, preset)
                         if node := self.camera_tree.cursor_node:
                             parent = node.parent
                             self.camera_tree.move_cursor(parent)
@@ -363,7 +363,7 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                             parent.set_label(f"presets: [{new_count}]")
                             self.camera_tree.refresh()
                     case 'g':
-                        print(goto_preset(camera, profile_token, preset))
+                        goto_preset(camera, profile_token, preset)
     
             if fqn == "capabilities.ptz.tours":
                 # add a new tour
@@ -438,12 +438,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                         self.camera_tree.refresh()
                     case 'w':
                         if node.label.plain.endswith("(* modified)"):
-                            print(modify_preset_tour(camera, profile_token, preset_tour))
+                            modify_preset_tour(camera, profile_token, preset_tour)
                             node.set_label(f"[{tour_index}]")
 
             if fqn == "capabilities.ptz.xaddr":
-                self.debug_log.clear()
-                self.debug_log.write(ptz_screen)
                 self.is_zoom_move = False
                 match event.key:
                     case 'w':
@@ -619,17 +617,18 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
         yield self.edit_input
         yield Footer()
 
-    def find_adapters(self) -> None:
-        self.ips = []
+    def find_adapters(self) -> list[str]:
+        ips = []
         VIRTUAL_KEYWORDS = {'docker', 'veth', 'vboxnet', 'vmware', 'virtual', 'wsl'}
         for interface, addrs in psutil.net_if_addrs().items():
             if any(keyword in interface.lower() for keyword in VIRTUAL_KEYWORDS):
                 continue
             for addr in addrs:
                 if addr.family == socket.AF_INET:
-                    if ipaddress.ip_address(addr.address).is_loopback:
+                    if ipaddress.ip_address(addr.address).is_loopback or ipaddress.ip_address(addr.address).is_link_local:
                         continue
-                    self.ips.append(addr.address)
+                    ips.append(addr.address)
+        return ips
 
     def handle_camera_events(self, alarms: list[dict[str, str]]) -> None:
         for alarm in alarms:
@@ -674,7 +673,7 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 continue
             if camera := child.data.get("camera"):
                 for reference in camera.subscription_references:
-                    print(unsubscribe(camera, reference.xaddr))
+                    unsubscribe(camera, reference.xaddr)
 
     def discover_worker(self) -> None:
         def camera_filled(camera: Camera) -> None:
@@ -696,6 +695,8 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             if self.manual:
                 find_camera_manually(self.manual, get_camera_credentials, camera_filled=camera_filled)
             else:
+                ips = self.find_adapters()
+                print(f"found adapters with ips: {ips}")
                 discover(self.ip_address, get_camera_credentials, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")

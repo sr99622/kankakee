@@ -1,8 +1,7 @@
-#from loguru import logger
 import traceback
 import niquests as requests
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Optional, List
 from utils.xml import get_xml_value
@@ -27,11 +26,11 @@ from datastructures.profiles import Profile, VideoEncoderConfiguration, AudioEnc
         parse_audio_decoder_configuration_options_response
 from datastructures.network import NetworkInterface, DNSInformation, HostnameInformation, \
         parse_network_interfaces_response, parse_dns_response, parse_hostname_response
-from datastructures.imaging import ImagingSettings, ImagingOptions, \
+from datastructures.imaging import ImagingSettings, \
         parse_imaging_settings_response, parse_imaging_options_response
 from datastructures.datetime import Date, DateTime, SystemDateAndTime,  NTPInformation, Time, TimeZone, \
         parse_system_date_and_time_response, parse_ntp_response
-from datastructures.event import EventServiceCapabilities, EventProperties, SubscriptionReference, \
+from datastructures.event import SubscriptionReference, \
         parse_event_service_capabilities_response, parse_event_properties_response
 from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response, \
         parse_get_preset_tours_response, parse_get_preset_tour_options_response
@@ -241,14 +240,14 @@ def get_capabilities(camera: Camera) -> None:
     xml = onvif_post(camera.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "capabilities", parse_capabilities_response(xml))
 
-def get_device_information(camera: Camera) -> str:
+def get_device_information(camera: Camera) -> None:
     body = """<tds:GetDeviceInformation/>"""
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "device_information", parse_device_information_response(xml))
 #######################################################################################################################################
 
 @safe_run
-def get_profiles(camera: Camera) -> str:
+def get_profiles(camera: Camera) -> None:
     body = "<trt:GetProfiles/>"
     xml = onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "profiles", parse_profiles_response(xml))
@@ -290,7 +289,7 @@ def get_hostname(camera: Camera) -> None:
     setattr(camera, "hostname", parse_hostname_response(xml))
 
 @safe_run
-def get_network_default_gateway(camera: Camera) -> str:
+def get_network_default_gateway(camera: Camera) -> None:
     body = f"""<tds:GetNetworkDefaultGateway/>"""
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera, "network_gateway", get_xml_value(xml, "//s:Body//tds:GetNetworkDefaultGatewayResponse//tds:NetworkGateway//tt:IPv4Address"))
@@ -346,7 +345,6 @@ def get_device_io_service_capabilities(camera: Camera) -> None:
 def get_relay_outputs(camera: Camera) -> None:
     body = f"""<tmd:GetRelayOutputs/>"""
     xml = onvif_post(camera.capabilities.device_io.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #print(xml)
     setattr(camera.capabilities.device_io, "relay_outputs", parse_get_relay_outputs_response(xml))
 
 @safe_run
@@ -419,7 +417,7 @@ def get_preset_tours(camera:Camera, profile_token: str) -> None:
     setattr(camera.capabilities.ptz, "tours", parse_get_preset_tours_response(xml))
 
 @safe_run
-def get_preset_tour_options(camera: Camera, profile_token: str) -> str:
+def get_preset_tour_options(camera: Camera, profile_token: str) -> None:
     body = f"""<tptz:GetPresetTourOptions><tptz:ProfileToken>{profile_token}</tptz:ProfileToken></tptz:GetPresetTourOptions>"""
     xml = onvif_post(camera.capabilities.ptz.xaddr, body, camera.username, camera.password, camera.time_offset)
     setattr(camera.capabilities.ptz, "tour_options", parse_get_preset_tour_options_response(xml))
@@ -540,13 +538,11 @@ def set_relay_output_state(camera: Camera, relay_output: RelayOutput, state: str
 @safe_run
 def start_multicast_streaming(camera: Camera, profile_token: str) -> str:
     body = f"""<trt:StartMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StartMulticastStreaming>"""
-    print(body)
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
 def stop_multicast_streaming(camera: Camera, profile_token: str) -> str:
     body = f"""<trt:StopMulticastStreaming><trt:ProfileToken>{profile_token}</trt:ProfileToken></trt:StopMulticastStreaming>"""
-    print(body)
     return onvif_post(camera.capabilities.media.xaddr, body, camera.username, camera.password, camera.time_offset)
 
 @safe_run
@@ -818,7 +814,7 @@ def subscribe_events(camera: Camera, events: list[str], ip_address: str) -> str:
     return xml
 
 @safe_run
-def unsubscribe(camera: Camera, subscription_reference_xaddr: str):
+def unsubscribe(camera: Camera, subscription_reference_xaddr: str) -> str:
     body = f"""<wsnt:Unsubscribe/>"""
     return onvif_post(subscription_reference_xaddr, body, camera.username, camera.password, camera.time_offset)
 
@@ -895,6 +891,7 @@ def validate_ip(arg: str) -> bool:
         return False
 
 def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+    print(f"Discovering cameras on {ip_address}...")
     cameras = []
     camera_jobs = []
     msg_id = uuid.uuid4()

@@ -24,13 +24,11 @@ NS = {
     "tns1": "http://www.onvif.org/ver10/topics",
 }
 
-Element = etree._Element
-
-def attr(elem: Element, name: str) -> Optional[str]:
+def attr(elem: etree._Element, name: str) -> Optional[str]:
     if elem is None: return
     return elem.attrib.get(name)
 
-def text(elem: Element, path: str) -> Optional[str]:
+def text(elem: etree._Element, path: str) -> Optional[str]:
     try:
         if not (result := elem.xpath(path, namespaces=NS)): return
         found = result[0]
@@ -40,7 +38,7 @@ def text(elem: Element, path: str) -> Optional[str]:
     except Exception as ex:
         print(f"text parsing exception: {ex}")
 
-def text_list(elem: Element, path: str) -> list[str]:
+def text_list(elem: etree._Element, path: str) -> list[str]:
     values: list[str] = []
     try:
         items = elem.xpath(path, namespaces=NS)
@@ -55,23 +53,23 @@ def text_list(elem: Element, path: str) -> list[str]:
         print(f"text_list exception: {ex}")
     return values
 
-def bool_text(elem: Element, path: str) -> Optional[bool]:
+def bool_text(elem: etree._Element, path: str) -> Optional[bool]:
     if not (value := text(elem, path)): return
     return value.strip().lower() in ("true", "1", "yes", "on")
 
-def bool_attr(elem: Element, name: str) -> Optional[bool]:
+def bool_attr(elem: etree._Element, name: str) -> Optional[bool]:
     if not (value := attr(elem, name)): return
     return value.strip().lower() in ("true", "1", "yes", "on")
 
-def int_text(elem: Element, path: str) -> Optional[int]:
+def int_text(elem: etree._Element, path: str) -> Optional[int]:
     if not (value := text(elem, path)): return
     return int(value)
 
-def int_attr(elem: Element, name: str) -> Optional[int]:
+def int_attr(elem: etree._Element, name: str) -> Optional[int]:
     if not (value := attr(elem, name)): return
     return int(value)
 
-def float_text(elem: Element, path: str) -> Optional[float]:
+def float_text(elem: etree._Element, path: str) -> Optional[float]:
     if not (value := text(elem, path)): return
     return float(value)
 
