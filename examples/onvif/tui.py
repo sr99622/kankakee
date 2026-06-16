@@ -190,9 +190,16 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
 
     def on_key(self, event: events.Key) -> None:
         node = self.camera_tree.cursor_node
-        if not node.data: return
-        if not (camera := node.data.get("camera")): return
-        if not len(camera.profiles): return
+        if not node.data:
+            self.debug_log.write("No data associated with the selected node.") 
+            return
+        if not (camera := node.data.get("camera")):
+            self.debug_log.write("No camera associated with the selected node.") 
+            return
+        if not len(camera.profiles): 
+            if event.key in ('r', 's', 't', 'u', 'w', 'a', 'd', 'z'):
+                self.debug_log.write("\nUnable to perform the requested action.\nThe selected camera has no profiles.")
+            return
         
         profile_token = camera.profiles[0].token
 
@@ -217,7 +224,8 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                         self.show_system_date_and_time(camera)
                         self.update_tree_time(camera, node)
                     case 't':
-                        get_time_offset(camera)
+                        print("GETTING TIME OFFSET ...")
+                        print(get_time_offset(camera))
                         self.show_system_date_and_time(camera)
                         self.update_tree_time(camera, node)
                     case 's':
@@ -500,16 +508,16 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                     msg += "Updated successfully, please reboot the camera to enact the update\n"
 
             elif fqn == "hostname.name":
-                set_hostname(self.editing_camera)
-                msg = "Updated successfully.\n"
+                xml = set_hostname(self.editing_camera)
+                msg = "set hostname error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("dns."):
-                set_dns(self.editing_camera)
-                msg = "Updated successfully.\n"
+                xml = set_dns(self.editing_camera)
+                msg = "set dns error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("ntp."):
-                self.debug_log.write(set_ntp(self.editing_camera))
-                msg = "Updated successfully.\n"
+                xml = set_ntp(self.editing_camera)
+                msg = "set ntp error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("network_interfaces.[*].ipv4"):
                 index = self.editing_indicies[-1]
@@ -521,20 +529,20 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             elif fqn.startswith("profiles.[*].imaging_settings"):
                 index = self.editing_indicies[0]
                 profile = self.editing_camera.profiles[index]
-                set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings)
-                msg = "Updated successfully.\n"
+                xml = set_imaging_settings(self.editing_camera, profile.video_source.source_token, profile.imaging_settings)
+                msg = "set imaging settings error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("profiles.[*].audio_encoder"):
                 index = self.editing_indicies[0]
                 profile = self.editing_camera.profiles[index]
-                set_audio_encoder_configuration(self.editing_camera, profile.audio_encoder)
-                msg = "Updated successfully.\n"
+                xml = set_audio_encoder_configuration(self.editing_camera, profile.audio_encoder)
+                msg = "set audio encoder error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("profiles.[*].video_encoder"):
                 index = self.editing_indicies[0]
                 profile = self.editing_camera.profiles[index]
-                set_video_encoder_configuration(self.editing_camera, profile.video_encoder)
-                msg = "Updated successfully.\n"
+                xml = set_video_encoder_configuration(self.editing_camera, profile.video_encoder)
+                msg = "set video encoder error" if xml is None else "Updated successfully.\n"
 
             elif fqn.startswith("capabilities.ptz.tours.[*].spots.[*]"):
                 parent = self.editing_node.parent.parent.parent
@@ -561,10 +569,10 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 search_node.parent.set_label("system_date_and_time (* modified)")
                 msg = f"{fqn}\nhas been modified, navigate to\nsystem_date_and_time (* modified)\nand use the 'w' key to commit the change"
 
-            self.debug_log.write(msg)
+            self.debug_log.write(f"\n{msg}")
         except Exception as ex:
             setattr(self.editing_owner, self.editing_field, old_value)
-            self.debug_log.write(f"Update Failure:\n\n{ex}")
+            self.debug_log.write(f"\nUpdate Failure:\n\n{ex}")
 
         self.editing_node.set_label(self.camera_tree._make_editable_label(self.editing_field, str(getattr(self.editing_owner, self.editing_field))))
         self.edit_input.add_class("hidden")
@@ -661,7 +669,9 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
     def on_mount(self) -> None:
         self.httpd = None
         self.run_worker(self.discover_worker, thread=True)
-        self.find_adapters()
+        #self.find_adapters()
+        self.debug_log.write(f"Available network interfaces: {self.find_adapters()}")
+        self.debug_log.write("Discovering cameras on the network ...")
         self.loop_callback = self.set_interval(5, self.main_loop)
 
     def on_unmount(self) -> None:
@@ -707,8 +717,8 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
             if self.manual:
                 find_camera_manually(self.manual, get_camera_credentials, on_error=self.on_error, camera_filled=camera_filled)
             else:
-                ips = self.find_adapters()
-                print(f"found adapters with ips: {ips}")
+                #ips = self.find_adapters()
+                #print(f"found adapters with ips: {ips}")
                 discover(self.ip_address, get_camera_credentials, on_error=self.on_error, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
