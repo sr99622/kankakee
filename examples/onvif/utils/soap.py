@@ -3,9 +3,8 @@ from __future__ import annotations
 import os
 import base64
 import hashlib
-import requests
+import niquests as requests
 from datetime import datetime, timezone, timedelta
-from loguru import logger
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 from lxml import etree

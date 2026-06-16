@@ -1,4 +1,4 @@
-from loguru import logger
+#from loguru import logger
 import traceback
 import niquests as requests
 import time
@@ -37,9 +37,6 @@ from datastructures.ptz import PTZPreset, PresetTour, parse_get_presets_response
         parse_get_preset_tours_response, parse_get_preset_tour_options_response
 from datastructures.device_io import parse_deviceio_service_capabilities_response, \
         parse_get_relay_outputs_response, RelayOutput, parse_get_relay_output_options_response
-
-#class AuthorizationError(Exception):
-#    pass
 
 @dataclass
 class DeviceInformation:
@@ -284,7 +281,6 @@ def get_audio_encoder_configuration_options(camera: Camera, profile: Profile) ->
 def get_network_interfaces(camera: Camera) -> None:
     body = "<tds:GetNetworkInterfaces/>"
     xml = onvif_post(camera.capabilities.device.xaddr, body, camera.username, camera.password, camera.time_offset)
-    #print(f"GET NETWORK INTERFACES: {xml}")
     setattr(camera,  "network_interfaces", parse_network_interfaces_response(xml))
 
 @safe_run
@@ -770,8 +766,6 @@ def create_pull_point_subscription(camera: Camera, event: str | None = None) -> 
 
     return onvif_post(camera.capabilities.events.xaddr, body, camera.username, camera.password, camera.time_offset)
 
-    #<tev:InitialTerminationTime>{initial_termination_time}</tev:InitialTerminationTime>
-
 @safe_run
 def pull_messages(camera: Camera, subscription_reference_xaddr: str) -> str:
     body = f"""<tev:PullMessages><tev:Timeout>PT1S</tev:Timeout><tev:MessageLimit>10</tev:MessageLimit></tev:PullMessages>"""
@@ -920,6 +914,7 @@ def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
         try:
             data, addr = sock.recvfrom(receiver_buffer_size)
             response = data.decode("utf-8", errors="ignore")
+            print(f"Received response from {addr[0]}:\n{response}\n")
             responses.append(response)
         except socket.timeout:
             break
