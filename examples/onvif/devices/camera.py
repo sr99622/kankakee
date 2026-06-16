@@ -50,6 +50,7 @@ class Camera:
     xaddr: Optional[str] = None
     name: Optional[str] = None
     last_error: Optional[str] = None
+    on_error: Optional[Callable[[str, Exception], None]] = None
     system_date_and_time: Optional[SystemDateAndTime] = field(default_factory=SystemDateAndTime)
     ntp: Optional[NTPInformation] =field(default_factory=NTPInformation)
     time_offset: Optional[int] = 0
@@ -85,6 +86,8 @@ def safe_run(func):
                     camera.last_error = msg
                 else:
                     camera.last_error += f"\n{msg}"
+                if camera.on_error:
+                    camera.on_error(camera.xaddr, ex)                
 
             print(traceback.format_exc())
             return None
@@ -839,8 +842,8 @@ def parse_device_information_response(xml: str) -> DeviceInformation:
         hardware_id=text(elem, "tds:HardwareId"),
     )
 
-def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera], None]) -> Camera:
-    camera = Camera(xaddr=xaddr, name=name)
+def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera], None], on_error: Callable[[str, Exception], None] = None) -> Camera:
+    camera = Camera(xaddr=xaddr, name=name, on_error=on_error)
     try:
         get_camera_credentials(camera)
         get_time_offset(camera)
@@ -878,7 +881,13 @@ def get_camera(xaddr: str, name: str, get_camera_credentials: Callable[[Camera],
                 get_audio_decoder_configurations(camera)
 
     except Exception as ex:
-        camera.last_error = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n\n{ex}\n"
+        msg = f"** Error\n\n{datetime.now():%Y-%m-%d %H:%M:%S}\n\n{ex}\n"
+        if not camera.last_error:
+            camera.last_error = msg
+        else:
+            camera.last_error += msg
+        if camera.on_error:
+            camera.on_error(camera.xaddr, ex)
         print(traceback.format_exc())
 
     return camera
@@ -890,7 +899,10 @@ def validate_ip(arg: str) -> bool:
     except ValueError:
         return False
 
-def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
+             on_error: Callable[[str, Exception], None] = None, 
+             camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+    
     print(f"Discovering cameras on {ip_address}...")
     cameras = []
     camera_jobs = []
@@ -948,7 +960,7 @@ def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [
-            executor.submit(get_camera, xaddr, name, get_camera_credentials)
+            executor.submit(get_camera, xaddr, name, get_camera_credentials, on_error)
             for xaddr, name in camera_jobs
         ]
 
@@ -961,7 +973,10 @@ def discover(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
 
     return cameras
 
-def find_camera_manually(ip_address: str, get_camera_credentials: Callable[[Camera], None], camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+def find_camera_manually(ip_address: str, get_camera_credentials: Callable[[Camera], None], 
+                         on_error: Callable[[str, Exception], None] = None,
+                         camera_filled: Callable[[Camera], None] = None) -> list[Camera]:
+    
     xaddr = f"http://{ip_address}/onvif/device_service"
     name = ip_address
     cameras = []
@@ -970,7 +985,7 @@ def find_camera_manually(ip_address: str, get_camera_credentials: Callable[[Came
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = [
-            executor.submit(get_camera, xaddr, name, get_camera_credentials)
+            executor.submit(get_camera, xaddr, name, get_camera_credentials, on_error)
             for xaddr, name in camera_jobs
         ]
 

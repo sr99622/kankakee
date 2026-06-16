@@ -22,7 +22,7 @@ from datastructures.event import SubscriptionReference, SubscriptionType, parse_
 from datastructures.ptz import TourSpot
 from server import Server, Handler, PORT
 from datastructures.ptz import parse_get_presets_response
-from functools import partial, wraps
+from functools import partial
 import traceback
 from datetime import datetime, timezone
 import argparse
@@ -111,7 +111,7 @@ class ObjectBrowser(App):
     def unsubscribe_events(self, camera: Camera):
         for reference in camera.subscription_references:
             if reference.resubscribe_timer: reference.resubscribe_timer.stop()
-            print(unsubscribe(camera, reference.xaddr))
+            unsubscribe(camera, reference.xaddr)
         camera.subscription_references.clear()
 
     def schedule_resubscribe_event(self, camera: Camera, event: str, delay: float) -> Timer:
@@ -156,7 +156,7 @@ class ObjectBrowser(App):
             camera.subscription_references.append(reference)
 
         except Exception as ex:
-            print(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
+            self.debug_log.write(f"resubscribe event error: {ex}\n{traceback.format_exc()}")
 
     def update_tree_time(self, camera: Camera, node: TreeNode) -> None:
         expanded = self.camera_tree.capture_expanded_nodes(node)
@@ -176,7 +176,6 @@ class ObjectBrowser(App):
         local = ""
         if l:
             local = f"local date time: {l.date.year}-{l.date.month:02}-{l.date.day:02} {l.time.hour:02}:{l.time.minute:02}:{l.time.second:02}"
-
 
         time_str = f"""
 Camera Time:
@@ -675,6 +674,33 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 for reference in camera.subscription_references:
                     unsubscribe(camera, reference.xaddr)
 
+    def update_node_label(self, node: TreeNode, new_label: str):
+        """Custom method to safely update a Tree node label."""
+        node.set_label(new_label)
+        self.camera_tree.refresh()  # Force redraw so change is visible
+
+    def on_error(self, xaddr: str, ex: Exception) -> None:
+        print(f"error with camera at {xaddr}: {ex}")
+        for child in self.camera_tree.root.children:
+            #print(child.label.plain)
+            if not child.data:
+                continue
+            #print("TESTING CHILD")
+            if camera := child.data.get("camera"):
+                print(f"found camera with xaddr: {camera.xaddr}")
+                if camera.xaddr == xaddr:
+                    print("found camera with error")
+                    for grand_child in child.children:
+                        print(f"checking child node: {grand_child.label.plain}")
+                        if grand_child.label.plain.startswith("last_error"):
+                            print("updating error node")
+                            #self.call_from_thread(self.update_node_label, grand_child, "** Error")
+                            self.debug_log.write(f"Error with camera at {camera.name}: {ex}")
+                            grand_child.set_label("last_error: ** Error")
+                            self.camera_tree.refresh()
+                            break
+                    
+
     def discover_worker(self) -> None:
         def camera_filled(camera: Camera) -> None:
             self.call_from_thread(self.camera_tree.add_camera, camera)
@@ -693,11 +719,11 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
 
         try:
             if self.manual:
-                find_camera_manually(self.manual, get_camera_credentials, camera_filled=camera_filled)
+                find_camera_manually(self.manual, get_camera_credentials, on_error=self.on_error, camera_filled=camera_filled)
             else:
                 ips = self.find_adapters()
                 print(f"found adapters with ips: {ips}")
-                discover(self.ip_address, get_camera_credentials, camera_filled=camera_filled)
+                discover(self.ip_address, get_camera_credentials, on_error=self.on_error, camera_filled=camera_filled)
         except Exception as ex:
             self.debug_log.write(f"Discovery error: {ex}")
             self.debug_log.write(traceback.format_exc())

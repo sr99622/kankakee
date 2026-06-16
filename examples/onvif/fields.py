@@ -67,6 +67,9 @@ UNUSED_FIELDS = [
 
 HIDDEN_FIELDS = [
     "subscription_references",
+    "username",
+    "password",
+    "on_error",
 ]
 
 def normalize_fqn(fqn: str) -> str:
