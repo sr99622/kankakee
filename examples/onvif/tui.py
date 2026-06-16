@@ -674,32 +674,18 @@ utc date time: {u.date.year}-{u.date.month:02}-{u.date.day:02} {u.time.hour:02}:
                 for reference in camera.subscription_references:
                     unsubscribe(camera, reference.xaddr)
 
-    def update_node_label(self, node: TreeNode, new_label: str):
-        """Custom method to safely update a Tree node label."""
-        node.set_label(new_label)
-        self.camera_tree.refresh()  # Force redraw so change is visible
-
     def on_error(self, xaddr: str, ex: Exception) -> None:
-        print(f"error with camera at {xaddr}: {ex}")
         for child in self.camera_tree.root.children:
-            #print(child.label.plain)
             if not child.data:
                 continue
-            #print("TESTING CHILD")
             if camera := child.data.get("camera"):
-                print(f"found camera with xaddr: {camera.xaddr}")
                 if camera.xaddr == xaddr:
-                    print("found camera with error")
                     for grand_child in child.children:
-                        print(f"checking child node: {grand_child.label.plain}")
                         if grand_child.label.plain.startswith("last_error"):
-                            print("updating error node")
-                            #self.call_from_thread(self.update_node_label, grand_child, "** Error")
                             self.debug_log.write(f"Error with camera at {camera.name}: {ex}")
                             grand_child.set_label("last_error: ** Error")
                             self.camera_tree.refresh()
                             break
-                    
 
     def discover_worker(self) -> None:
         def camera_filled(camera: Camera) -> None:
