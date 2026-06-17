@@ -224,6 +224,11 @@ the individual field instructions for details.
 
 Events, PTZ functions and Relay IO can be found 
 in the capabilities branch.
+
+Multicast streaming can be started and stopped 
+from the profiles branch. The first profile is 
+generally the main profile and the subsequent 
+profiles show sub streams. 
 """
 
 field_descriptions = {
